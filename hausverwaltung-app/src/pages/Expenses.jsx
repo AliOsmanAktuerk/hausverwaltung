@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Typography, TextField, Button, Paper, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Stack, Box,
   FormControl, InputLabel, Select, MenuItem, Chip, Divider,
-  IconButton, Tooltip, Dialog, DialogContent,
+  IconButton, Tooltip, Dialog, DialogContent, InputAdornment,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import ImageIcon from '@mui/icons-material/Image';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -305,6 +306,12 @@ function Expenses() {
   const [formData, setFormData] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [preview, setPreview] = useState(null); // { expense, startIndex }
+  const [search, setSearch] = useState('');
+  const [filterPerson, setFilterPerson] = useState('');
+  const [filterProduct, setFilterProduct] = useState('');
+  const [filterPayment, setFilterPayment] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -374,6 +381,32 @@ function Expenses() {
 
   const getPersonName = (personId) => persons.find(p => String(p.id) === String(personId))?.name ?? 'Unbekannt';
   const getProductName = (productId) => products.find(p => String(p.id) === String(productId))?.name ?? 'Unbekannt';
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return expenses.filter(exp => {
+      const personName = getPersonName(exp.personId).toLowerCase();
+      const productName = getProductName(exp.productId).toLowerCase();
+      const matchesSearch = !q ||
+        personName.includes(q) ||
+        productName.includes(q) ||
+        exp.note?.toLowerCase().includes(q) ||
+        String(exp.amount).includes(q);
+      const matchesPerson = !filterPerson || String(exp.personId) === String(filterPerson);
+      const matchesProduct = !filterProduct || String(exp.productId) === String(filterProduct);
+      const matchesPayment = !filterPayment || exp.paymentMethod === filterPayment;
+      const matchesFrom = !filterDateFrom || exp.date >= filterDateFrom;
+      const matchesTo = !filterDateTo || exp.date <= filterDateTo;
+      return matchesSearch && matchesPerson && matchesProduct && matchesPayment && matchesFrom && matchesTo;
+    });
+  }, [expenses, search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo, persons, products]);
+
+  const hasFilter = search || filterPerson || filterProduct || filterPayment || filterDateFrom || filterDateTo;
+
+  const resetFilters = () => {
+    setSearch(''); setFilterPerson(''); setFilterProduct('');
+    setFilterPayment(''); setFilterDateFrom(''); setFilterDateTo('');
+  };
 
   return (
     <div>
@@ -463,12 +496,72 @@ function Expenses() {
         {/* Tabelle */}
         <Paper elevation={2}>
           <Box px={3} py={2}>
-            <Typography variant="h6">Alle Kostenpositionen ({expenses.length})</Typography>
+            <Typography variant="h6">
+              Alle Kostenpositionen ({filtered.length}{hasFilter && filtered.length !== expenses.length ? ` von ${expenses.length}` : ''})
+            </Typography>
           </Box>
+
+          {/* Filterleiste */}
+          <Box px={3} pb={2}>
+            <Stack spacing={1}>
+              {/* Zeile 1: Suche + Person + Produkt */}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <TextField
+                  size="small"
+                  placeholder="Suche nach Person, Produkt, Notiz…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+                  sx={{ flex: 2 }}
+                />
+                <FormControl size="small" sx={{ flex: 1, minWidth: 130 }}>
+                  <InputLabel>Person</InputLabel>
+                  <Select value={filterPerson} onChange={(e) => setFilterPerson(e.target.value)} label="Person">
+                    <MenuItem value="">Alle</MenuItem>
+                    {persons.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ flex: 1, minWidth: 130 }}>
+                  <InputLabel>Produkt</InputLabel>
+                  <Select value={filterProduct} onChange={(e) => setFilterProduct(e.target.value)} label="Produkt">
+                    <MenuItem value="">Alle</MenuItem>
+                    {products.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Stack>
+
+              {/* Zeile 2: Zahlungsart + Datum von/bis + Reset */}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>Zahlungsart</InputLabel>
+                  <Select value={filterPayment} onChange={(e) => setFilterPayment(e.target.value)} label="Zahlungsart">
+                    <MenuItem value="">Alle</MenuItem>
+                    {paymentMethods.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField
+                  size="small" type="date" label="Von"
+                  value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
+                  InputLabelProps={{ shrink: true }} sx={{ width: 150 }}
+                />
+                <TextField
+                  size="small" type="date" label="Bis"
+                  value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
+                  InputLabelProps={{ shrink: true }} sx={{ width: 150 }}
+                />
+                {hasFilter && (
+                  <Button size="small" onClick={resetFilters}>Zurücksetzen</Button>
+                )}
+              </Stack>
+            </Stack>
+          </Box>
+
           <Divider />
-          {expenses.length === 0 ? (
+          {filtered.length === 0 ? (
             <Box px={3} py={4} textAlign="center">
-              <Typography color="text.secondary">Noch keine Kostenpositionen vorhanden</Typography>
+              <Typography color="text.secondary">
+                {expenses.length === 0 ? 'Noch keine Kostenpositionen vorhanden' : 'Keine Ergebnisse für diesen Filter'}
+              </Typography>
             </Box>
           ) : (
             <TableContainer sx={{ overflowX: 'auto' }}>
@@ -486,7 +579,7 @@ function Expenses() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {expenses.map(expense => {
+                  {filtered.map(expense => {
                     const attachments = expense.attachments || [];
                     return (
                       <TableRow key={expense.id} hover>
