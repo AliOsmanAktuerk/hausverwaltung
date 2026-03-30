@@ -4,7 +4,7 @@
   "description": "Hausverwaltung App",
   "private": true,
   "scripts": {
-    "install:all": "npm install --prefix hausverwaltung-app && npm install --prefix backend",
+    "install:all": "npm install --prefix hausverwaltung-app --legacy-peer-deps && npm install --prefix backend",
     "build": "npm run build --prefix hausverwaltung-app",
     "start": "node backend/server.js",
     "dev:frontend": "npm run dev --prefix hausverwaltung-app",
