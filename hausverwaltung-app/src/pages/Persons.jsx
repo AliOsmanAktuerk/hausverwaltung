@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import {
   Typography, TextField, Button, Paper, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Stack, Box, Tooltip, Divider
+  TableCell, TableContainer, TableHead, TableRow, Stack, Box, Tooltip, Divider,
+  Dialog, DialogTitle, DialogContent, DialogActions, IconButton,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
 import { personsApi } from '../api';
 
 const PRESET_COLORS = [
@@ -45,9 +47,7 @@ function ColorPicker({ value, onChange }) {
             sx={{ width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', overflow: 'hidden', border: '2px solid #ccc', position: 'relative' }}
           >
             <Box
-              component="input"
-              type="color"
-              value={value}
+              component="input" type="color" value={value}
               onChange={(e) => onChange(e.target.value)}
               sx={{ position: 'absolute', top: -4, left: -4, width: 36, height: 36, border: 'none', cursor: 'pointer', padding: 0 }}
             />
@@ -58,127 +58,166 @@ function ColorPicker({ value, onChange }) {
   );
 }
 
+// ── Formular-Modal ────────────────────────────────────────────────────────────
+function PersonFormDialog({ open, person, onClose, onSave }) {
+  const [formData, setFormData] = useState(emptyForm);
+
+  useEffect(() => {
+    setFormData(person ? { name: person.name, color: person.color || PRESET_COLORS[0] } : emptyForm);
+  }, [person, open]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>
+        {person ? 'Person bearbeiten' : 'Person hinzufügen'}
+        <IconButton onClick={onClose} sx={{ position: 'absolute', right: 8, top: 8 }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <Box component="form" onSubmit={handleSubmit}>
+        <DialogContent dividers>
+          <Stack spacing={3}>
+            <TextField
+              label="Name *"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required fullWidth size="small" autoFocus
+            />
+            <ColorPicker value={formData.color} onChange={(color) => setFormData({ ...formData, color })} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Abbrechen</Button>
+          <Button type="submit" variant="contained" startIcon={person ? <EditIcon /> : <AddIcon />}>
+            {person ? 'Aktualisieren' : 'Hinzufügen'}
+          </Button>
+        </DialogActions>
+      </Box>
+    </Dialog>
+  );
+}
+
+// ── Löschen-Modal ─────────────────────────────────────────────────────────────
+function DeleteDialog({ open, name, onClose, onConfirm }) {
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Person löschen</DialogTitle>
+      <DialogContent>
+        <Typography>
+          <strong>{name}</strong> wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Abbrechen</Button>
+        <Button variant="contained" color="error" startIcon={<DeleteIcon />} onClick={onConfirm}>
+          Löschen
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ── Hauptkomponente ───────────────────────────────────────────────────────────
 function Persons() {
   const [persons, setPersons] = useState([]);
-  const [formData, setFormData] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editPerson, setEditPerson] = useState(null);   // null = neu anlegen
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   useEffect(() => {
     personsApi.getAll().then(setPersons);
   }, []);
 
-  const savePerson = async (e) => {
-    e.preventDefault();
-    if (editingId) {
-      const updated = await personsApi.update(editingId, formData);
-      setPersons(prev => prev.map(p => p.id === editingId ? updated : p));
-      setEditingId(null);
+  const openCreate = () => { setEditPerson(null); setFormOpen(true); };
+  const openEdit = (person) => { setEditPerson(person); setFormOpen(true); };
+  const closeForm = () => setFormOpen(false);
+
+  const handleSave = async (formData) => {
+    if (editPerson) {
+      const updated = await personsApi.update(editPerson.id, formData);
+      setPersons(prev => prev.map(p => p.id === editPerson.id ? updated : p));
     } else {
       const created = await personsApi.create(formData);
       setPersons(prev => [...prev, created]);
     }
-    setFormData(emptyForm);
+    closeForm();
   };
 
-  const editPerson = (person) => {
-    setFormData({ name: person.name, color: person.color || PRESET_COLORS[0] });
-    setEditingId(person.id);
-  };
-
-  const deletePerson = async (id) => {
-    if (confirm('Person wirklich löschen?')) {
-      await personsApi.remove(id);
-      setPersons(prev => prev.filter(p => p.id !== id));
-    }
-  };
-
-  const cancelEdit = () => {
-    setFormData(emptyForm);
-    setEditingId(null);
+  const handleDelete = async () => {
+    await personsApi.remove(deleteTarget.id);
+    setPersons(prev => prev.filter(p => p.id !== deleteTarget.id));
+    setDeleteTarget(null);
   };
 
   return (
     <div>
       <Typography variant="h5" gutterBottom fontWeight="bold">Personen Verwaltung</Typography>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
-
-        {/* Formular */}
-        <Paper sx={{ p: 3 }} elevation={2}>
-          <Typography variant="h6" gutterBottom>
-            {editingId ? 'Person bearbeiten' : 'Person hinzufügen'}
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-          <Box component="form" onSubmit={savePerson}>
-            <Stack spacing={3}>
-              <TextField
-                label="Name *"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                fullWidth
-                size="small"
-              />
-              <ColorPicker value={formData.color} onChange={(color) => setFormData({ ...formData, color })} />
-              <Stack direction="row" spacing={2}>
-                <Button type="submit" variant="contained" startIcon={editingId ? <EditIcon /> : <AddIcon />}>
-                  {editingId ? 'Aktualisieren' : 'Hinzufügen'}
-                </Button>
-                {editingId && (
-                  <Button variant="outlined" onClick={cancelEdit}>Abbrechen</Button>
-                )}
-              </Stack>
-            </Stack>
+      <Paper elevation={2}>
+        <Box px={3} py={2} display="flex" alignItems="center" justifyContent="space-between">
+          <Typography variant="h6">Alle Personen ({persons.length})</Typography>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+            Neu
+          </Button>
+        </Box>
+        <Divider />
+        {persons.length === 0 ? (
+          <Box px={3} py={4} textAlign="center">
+            <Typography color="text.secondary">Noch keine Personen vorhanden</Typography>
           </Box>
-        </Paper>
-
-        {/* Liste */}
-        <Paper elevation={2}>
-          <Box px={3} py={2}>
-            <Typography variant="h6">Alle Personen ({persons.length})</Typography>
-          </Box>
-          <Divider />
-          {persons.length === 0 ? (
-            <Box px={3} py={4} textAlign="center">
-              <Typography color="text.secondary">Noch keine Personen vorhanden</Typography>
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ '& th': { fontWeight: 'bold', backgroundColor: 'grey.50' } }}>
-                    <TableCell>Name</TableCell>
-                    <TableCell align="right">Aktionen</TableCell>
+        ) : (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ '& th': { fontWeight: 'bold', backgroundColor: 'grey.50' } }}>
+                  <TableCell>Name</TableCell>
+                  <TableCell align="right">Aktionen</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {persons.map(person => (
+                  <TableRow key={person.id} hover>
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={1.5}>
+                        <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: person.color || '#1976d2', flexShrink: 0 }} />
+                        {person.name}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <IconButton size="small" onClick={() => openEdit(person)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={() => setDeleteTarget(person)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {persons.map(person => (
-                    <TableRow key={person.id} hover>
-                      <TableCell>
-                        <Box display="flex" alignItems="center" gap={1.5}>
-                          <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: person.color || '#1976d2', flexShrink: 0 }} />
-                          {person.name}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          <Button size="small" startIcon={<EditIcon />} onClick={() => editPerson(person)}>
-                            Bearbeiten
-                          </Button>
-                          <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={() => deletePerson(person.id)}>
-                            Löschen
-                          </Button>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Paper>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
 
-      </div>
+      <PersonFormDialog
+        open={formOpen}
+        person={editPerson}
+        onClose={closeForm}
+        onSave={handleSave}
+      />
+      <DeleteDialog
+        open={!!deleteTarget}
+        name={deleteTarget?.name}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

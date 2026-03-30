@@ -10,7 +10,9 @@
       "Bash(curl -s -o /dev/null -w \"SPA /persons: HTTP %{http_code}\\\\n\" http://localhost:3002/persons)",
       "Bash(curl -s -o /dev/null -w \"SPA /expenses: HTTP %{http_code}\\\\n\" http://localhost:3002/expenses)",
       "Bash(chmod +x \"E:/entwicklung/hausverwaltung/start.sh\")",
-      "Bash(pkill -f \"node.*server.js\")"
+      "Bash(pkill -f \"node.*server.js\")",
+      "Bash(npm --version)",
+      "Bash(chmod:*)"
     ]
   }
 }
