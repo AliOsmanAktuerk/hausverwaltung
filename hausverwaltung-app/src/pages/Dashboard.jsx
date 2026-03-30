@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Box, Card, CardContent, Typography, Paper, Chip, Avatar, Stack, Tabs, Tab } from '@mui/material';
+import { Box, Card, CardContent, Typography, Paper, Chip, Avatar, Stack, Tabs, Tab, Alert, Collapse, IconButton, LinearProgress, Tooltip as MuiTooltip } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -7,6 +7,9 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import EuroIcon from '@mui/icons-material/Euro';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import StorageIcon from '@mui/icons-material/Storage';
+import MemoryIcon from '@mui/icons-material/Memory';
+import CloseIcon from '@mui/icons-material/Close';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -15,7 +18,7 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { personsApi, productsApi, expensesApi } from '../api';
+import { personsApi, productsApi, expensesApi, systemApi } from '../api';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
@@ -249,16 +252,101 @@ function TabRanking({ topPersons, totalAmount, recentExpenses, persons, products
   );
 }
 
+// ── System-Status Widget ──────────────────────────────────────────────────────
+function StorageBar({ label, usedPercent, free, total, icon: Icon }) {
+  const pct = usedPercent ?? 0;
+  const color = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#10b981';
+  const freeGB = free != null ? (free / 1073741824).toFixed(1) : null;
+  const totalGB = total != null ? (total / 1073741824).toFixed(1) : null;
+  return (
+    <Box flex={1} minWidth={140}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
+        <Box display="flex" alignItems="center" gap={0.75}>
+          <Icon sx={{ fontSize: 15, color: 'text.secondary' }} />
+          <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            {label}
+          </Typography>
+        </Box>
+        <MuiTooltip title={totalGB ? `${freeGB} GB frei von ${totalGB} GB` : ''} placement="top" arrow>
+          <Typography variant="caption" fontWeight="bold" sx={{ color }}>
+            {freeGB != null ? `${freeGB} GB frei` : `${100 - pct}% frei`}
+          </Typography>
+        </MuiTooltip>
+      </Box>
+      <LinearProgress
+        variant="determinate"
+        value={pct}
+        sx={{
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: 'rgba(0,0,0,0.08)',
+          '& .MuiLinearProgress-bar': { backgroundColor: color, borderRadius: 4 },
+        }}
+      />
+      <Box display="flex" justifyContent="space-between" mt={0.5}>
+        <Typography variant="caption" color="text.disabled">{pct}% belegt</Typography>
+        {totalGB && <Typography variant="caption" color="text.disabled">{totalGB} GB gesamt</Typography>}
+      </Box>
+    </Box>
+  );
+}
+
+function SystemStatusWidget({ systemStatus }) {
+  if (!systemStatus) return null;
+  const { disk, memory, uptime } = systemStatus;
+
+  const uptimeStr = (() => {
+    if (uptime == null) return null;
+    const h = Math.floor(uptime / 3600);
+    const m = Math.floor((uptime % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  })();
+
+  return (
+    <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', p: 2.5, mb: 4 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <StorageIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+          <Typography variant="subtitle2" fontWeight="bold">Systemstatus</Typography>
+        </Box>
+        {uptimeStr && (
+          <Chip label={`Laufzeit: ${uptimeStr}`} size="small" variant="outlined"
+            sx={{ fontSize: '0.7rem', height: 22 }} />
+        )}
+      </Box>
+      <Box display="flex" gap={3} flexWrap="wrap">
+        {disk?.total != null && (
+          <StorageBar label="Speicher" usedPercent={disk.usedPercent} free={disk.free} total={disk.total} icon={StorageIcon} />
+        )}
+        {memory?.total != null && (
+          <StorageBar label="Arbeitsspeicher" usedPercent={memory.usedPercent} free={memory.free} total={memory.total} icon={MemoryIcon} />
+        )}
+        {disk?.total == null && memory?.total == null && (
+          <Typography variant="caption" color="text.disabled">Keine Systemdaten verfügbar (nur unter Linux)</Typography>
+        )}
+      </Box>
+    </Paper>
+  );
+}
+
 // ── Haupt-Dashboard ───────────────────────────────────────────────────────────
 function Dashboard() {
   const [expenses, setExpenses] = useState([]);
   const [persons, setPersons] = useState([]);
   const [products, setProducts] = useState([]);
   const [tab, setTab] = useState(0);
+  const [systemStatus, setSystemStatus] = useState(null);
+  const [diskAlertDismissed, setDiskAlertDismissed] = useState(false);
 
   useEffect(() => {
     Promise.all([personsApi.getAll(), productsApi.getAll(), expensesApi.getAll()])
       .then(([p, pr, e]) => { setPersons(p); setProducts(pr); setExpenses(e); });
+
+    // System-Status laden und alle 60 Sekunden aktualisieren
+    const fetchStatus = () => systemApi.getStatus().then(setSystemStatus).catch(() => {});
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 60_000);
+    return () => clearInterval(interval);
   }, []);
 
   const now = new Date();
@@ -340,8 +428,28 @@ function Dashboard() {
           variant="outlined" size="small" />
       </Box>
 
+      {/* ── Speicherwarnung ───────────────────────────────────────────── */}
+      <Collapse in={!diskAlertDismissed && systemStatus?.disk?.warning === true}>
+        <Alert
+          severity="warning"
+          icon={<StorageIcon fontSize="small" />}
+          sx={{ mb: 3, borderRadius: 2 }}
+          action={
+            <IconButton size="small" onClick={() => setDiskAlertDismissed(true)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          }
+        >
+          <strong>Speicherplatz kritisch:</strong> Nur noch{' '}
+          <strong>{100 - (systemStatus?.disk?.usedPercent ?? 0)}%</strong> freier Speicher
+          {systemStatus?.disk?.free != null && (
+            <> ({(systemStatus.disk.free / 1024 / 1024 / 1024).toFixed(1)} GB frei)</>
+          )}. Bitte nicht benötigte Dateien entfernen.
+        </Alert>
+      </Collapse>
+
       {/* KPI Karten */}
-      <div className="grid grid-cols-4 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard label="Gesamtkosten" value={`${totalAmount.toFixed(2)} €`} Icon={EuroIcon}
           gradient="linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)" trend={trend} />
         <KpiCard label="Dieser Monat" value={`${thisMonthTotal.toFixed(2)} €`} Icon={CalendarMonthIcon}
@@ -354,6 +462,9 @@ function Dashboard() {
           gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
           sub={topPersons[0] ? `Top: ${topPersons[0].name}` : 'Keine Daten'} />
       </div>
+
+      {/* System-Status */}
+      <SystemStatusWidget systemStatus={systemStatus} />
 
       {isEmpty ? (
         <Paper elevation={0} sx={{ p: 6, textAlign: 'center', borderRadius: 3, border: '1px dashed', borderColor: 'divider' }}>

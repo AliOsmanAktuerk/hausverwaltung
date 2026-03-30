@@ -30,6 +30,10 @@ export const expensesApi = {
   remove: (id) => request('DELETE', `/api/expenses/${id}`),
 };
 
+export const systemApi = {
+  getStatus: () => request('GET', '/api/system/status'),
+};
+
 export const uploadsApi = {
   upload: async (file) => {
     const form = new FormData();

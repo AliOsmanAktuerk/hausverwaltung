@@ -1,6 +1,8 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 
@@ -106,6 +108,42 @@ app.delete('/api/uploads/:filename', (req, res) => {
   const filepath = path.join(UPLOADS_DIR, path.basename(req.params.filename));
   if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
   res.status(204).end();
+});
+
+// ── System-Status ─────────────────────────────────────────────────────────────
+app.get('/api/system/status', (_req, res) => {
+  try {
+    // Speicherplatz über df (Linux/macOS) oder Windows
+    let diskTotal = null, diskFree = null, diskUsedPct = null;
+    try {
+      const dfOut = execSync(`df -k "${DATA_DIR}"`, { timeout: 3000 }).toString();
+      const parts = dfOut.trim().split('\n')[1].trim().split(/\s+/);
+      diskTotal = parseInt(parts[1]) * 1024;
+      diskFree  = parseInt(parts[3]) * 1024;
+      diskUsedPct = Math.round((1 - diskFree / diskTotal) * 100);
+    } catch {
+      // Windows oder df nicht verfügbar — Fallback
+    }
+
+    res.json({
+      disk: {
+        total: diskTotal,
+        free: diskFree,
+        usedPercent: diskUsedPct,
+        warning: diskUsedPct !== null ? diskUsedPct >= 90 : false,
+      },
+      memory: {
+        total: os.totalmem(),
+        free: os.freemem(),
+        usedPercent: Math.round((1 - os.freemem() / os.totalmem()) * 100),
+      },
+      uptime: Math.floor(os.uptime()),
+      platform: os.platform(),
+      nodeVersion: process.version,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Statische Frontend-Dateien ausliefern (nach dem Build)

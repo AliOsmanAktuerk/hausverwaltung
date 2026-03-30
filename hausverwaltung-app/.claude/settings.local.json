@@ -12,7 +12,10 @@
       "Bash(chmod +x \"E:/entwicklung/hausverwaltung/start.sh\")",
       "Bash(pkill -f \"node.*server.js\")",
       "Bash(npm --version)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(curl:*)",
+      "Bash(cmd //c \"taskkill /F /PID 5196\")"
     ]
   }
 }
