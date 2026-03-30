@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+hausverwaltung-app/node_modules/
+backend/node_modules/
+
+# Build
+hausverwaltung-app/dist/
+
+# Daten (werden lokal gespeichert, nicht ins Repo)
+backend/data/uploads/
+backend/data/persons.json
+backend/data/products.json
+backend/data/expenses.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

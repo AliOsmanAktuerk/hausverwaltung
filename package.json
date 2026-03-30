@@ -1,0 +1,13 @@
+{
+  "name": "hausverwaltung",
+  "version": "1.0.0",
+  "description": "Hausverwaltung App",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix hausverwaltung-app && npm install --prefix backend",
+    "build": "npm run build --prefix hausverwaltung-app",
+    "start": "node backend/server.js",
+    "dev:frontend": "npm run dev --prefix hausverwaltung-app",
+    "dev:backend": "node --watch backend/server.js"
+  }
+}
