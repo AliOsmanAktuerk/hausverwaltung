@@ -15,7 +15,8 @@
       "Bash(chmod:*)",
       "Bash(taskkill /F /IM node.exe)",
       "Bash(curl:*)",
-      "Bash(cmd //c \"taskkill /F /PID 5196\")"
+      "Bash(cmd //c \"taskkill /F /PID 5196\")",
+      "Bash(netstat -ano)"
     ]
   }
 }
