@@ -9,7 +9,8 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'pwa-192.svg', 'pwa-512.svg'],
+      injectRegister: 'auto',
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192.svg', 'pwa-512.svg'],
       manifest: {
         name: 'Hausverwaltung',
         short_name: 'Hausverwaltung',
@@ -17,7 +18,7 @@ export default defineConfig({
         theme_color: '#6366f1',
         background_color: '#ffffff',
         display: 'standalone',
-        orientation: 'portrait-primary',
+        orientation: 'any',
         start_url: '/',
         scope: '/',
         lang: 'de',
@@ -37,12 +38,23 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // API-Aufrufe nie cachen — immer frisch vom Server
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api\//],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
+            // API-Aufrufe: immer Netzwerk, kein Cache
             urlPattern: /^\/api\//,
             handler: 'NetworkOnly',
+          },
+          {
+            // Uploads: Cache-First mit Netzwerk-Fallback
+            urlPattern: /^\/api\/uploads\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'uploads-cache',
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
           },
         ],
       },
