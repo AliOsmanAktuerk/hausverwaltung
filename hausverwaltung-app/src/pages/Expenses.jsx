@@ -4,7 +4,7 @@ import {
   TableCell, TableContainer, TableHead, TableRow, Stack, Box,
   FormControl, InputLabel, Select, MenuItem, Chip, Divider,
   IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions,
-  InputAdornment, TablePagination,
+  InputAdornment, TablePagination, TableSortLabel,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -18,7 +18,9 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { expensesApi, personsApi, productsApi, uploadsApi } from '../api';
+import { fmtEuro, fmtDate } from '../utils/format';
 
 const paymentMethods = ['Bar', 'Karte', 'Überweisung', 'Lastschrift'];
 const paymentColors = { Bar: 'default', Karte: 'primary', Überweisung: 'success', Lastschrift: 'warning' };
@@ -314,6 +316,21 @@ function Expenses() {
   const [filterPayment, setFilterPayment] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortDir, setSortDir] = useState('desc');
+  const [colFilters, setColFilters] = useState({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', payment: '', note: '' });
+  const [showTimestamps, setShowTimestamps] = useState(false);
+
+  const handleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('asc'); }
+    setPage(0);
+  };
+
+  const updateColFilter = (col) => (e) => {
+    setColFilters(prev => ({ ...prev, [col]: e.target.value }));
+    setPage(0);
+  };
 
   useEffect(() => {
     Promise.all([expensesApi.getAll(), personsApi.getAll(), productsApi.getAll()])
@@ -325,10 +342,13 @@ function Expenses() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return expenses.filter(exp => {
+    const cf = colFilters;
+    let result = expenses.filter(exp => {
+      const personName = getPersonName(exp.personId);
+      const productName = getProductName(exp.productId);
       const matchesSearch = !q ||
-        getPersonName(exp.personId).toLowerCase().includes(q) ||
-        getProductName(exp.productId).toLowerCase().includes(q) ||
+        personName.toLowerCase().includes(q) ||
+        productName.toLowerCase().includes(q) ||
         exp.note?.toLowerCase().includes(q) ||
         String(exp.amount).includes(q);
       return matchesSearch &&
@@ -336,18 +356,46 @@ function Expenses() {
         (!filterProduct || String(exp.productId) === String(filterProduct)) &&
         (!filterPayment || exp.paymentMethod === filterPayment) &&
         (!filterDateFrom || exp.date >= filterDateFrom) &&
-        (!filterDateTo || exp.date <= filterDateTo);
+        (!filterDateTo || exp.date <= filterDateTo) &&
+        (!cf.date || fmtDate(exp.date).includes(cf.date)) &&
+        (!cf.createdAt || fmtDate(exp.createdAt?.split('T')[0]).includes(cf.createdAt)) &&
+        (!cf.updatedAt || fmtDate(exp.updatedAt?.split('T')[0]).includes(cf.updatedAt)) &&
+        (!cf.person || personName.toLowerCase().includes(cf.person.toLowerCase())) &&
+        (!cf.product || productName.toLowerCase().includes(cf.product.toLowerCase())) &&
+        (!cf.amount || String(exp.amount).includes(cf.amount)) &&
+        (!cf.payment || exp.paymentMethod?.toLowerCase().includes(cf.payment.toLowerCase())) &&
+        (!cf.note || exp.note?.toLowerCase().includes(cf.note.toLowerCase()));
     });
-  }, [expenses, search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo, persons, products]);
+
+    result = [...result].sort((a, b) => {
+      let aVal, bVal;
+      if (sortBy === 'date')      { aVal = a.date ?? ''; bVal = b.date ?? ''; }
+      else if (sortBy === 'createdAt') { aVal = a.createdAt ?? ''; bVal = b.createdAt ?? ''; }
+      else if (sortBy === 'updatedAt') { aVal = a.updatedAt ?? ''; bVal = b.updatedAt ?? ''; }
+      else if (sortBy === 'person')    { aVal = getPersonName(a.personId);  bVal = getPersonName(b.personId); }
+      else if (sortBy === 'product')   { aVal = getProductName(a.productId); bVal = getProductName(b.productId); }
+      else if (sortBy === 'amount')    { aVal = parseFloat(a.amount || 0);   bVal = parseFloat(b.amount || 0); }
+      else if (sortBy === 'payment')   { aVal = a.paymentMethod ?? '';        bVal = b.paymentMethod ?? ''; }
+      else { aVal = a.date ?? ''; bVal = b.date ?? ''; }
+      if (typeof aVal === 'number') return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      return sortDir === 'asc'
+        ? String(aVal).localeCompare(String(bVal), 'de')
+        : String(bVal).localeCompare(String(aVal), 'de');
+    });
+
+    return result;
+  }, [expenses, search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo, colFilters, sortBy, sortDir, persons, products]);
 
   // Bei Filteränderung zurück auf Seite 1
   useEffect(() => { setPage(0); }, [search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo]);
 
-  const hasFilter = search || filterPerson || filterProduct || filterPayment || filterDateFrom || filterDateTo;
+  const hasColFilter = Object.values(colFilters).some(Boolean);
+  const hasFilter = search || filterPerson || filterProduct || filterPayment || filterDateFrom || filterDateTo || hasColFilter;
   const resetFilters = () => {
     setPage(0);
     setSearch(''); setFilterPerson(''); setFilterProduct('');
     setFilterPayment(''); setFilterDateFrom(''); setFilterDateTo('');
+    setColFilters({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', payment: '', note: '' });
   };
 
   const openCreate = () => { setEditExpense(null); setFormOpen(true); };
@@ -381,7 +429,22 @@ function Expenses() {
           <Typography variant="h6">
             Alle Kostenpositionen ({filtered.length}{hasFilter && filtered.length !== expenses.length ? ` von ${expenses.length}` : ''})
           </Typography>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Neu</Button>
+          <Stack direction="row" spacing={1}>
+            <Tooltip title={showTimestamps ? 'Zeitstempel ausblenden' : 'Zeitstempel einblenden'}>
+              <IconButton
+                onClick={() => setShowTimestamps(v => !v)}
+                sx={{
+                  border: '1px solid',
+                  borderColor: showTimestamps ? 'primary.main' : 'divider',
+                  color: showTimestamps ? 'primary.main' : 'text.secondary',
+                  borderRadius: 1,
+                }}
+              >
+                <AccessTimeIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Neu</Button>
+          </Stack>
         </Box>
 
         {/* Filterleiste */}
@@ -427,36 +490,106 @@ function Expenses() {
         </Box>
 
         <Divider />
-        {filtered.length === 0 ? (
+        {expenses.length === 0 ? (
           <Box px={3} py={4} textAlign="center">
-            <Typography color="text.secondary">
-              {expenses.length === 0 ? 'Noch keine Kostenpositionen vorhanden' : 'Keine Ergebnisse für diesen Filter'}
-            </Typography>
+            <Typography color="text.secondary">Noch keine Kostenpositionen vorhanden</Typography>
           </Box>
         ) : (
           <TableContainer sx={{ overflowX: 'auto' }}>
             <Table size="small" sx={{ minWidth: 600 }}>
               <TableHead>
-                <TableRow sx={{ '& th': { fontWeight: 'bold', backgroundColor: 'grey.50' } }}>
-                  <TableCell>Datum</TableCell>
-                  <TableCell>Person</TableCell>
-                  <TableCell>Produkt</TableCell>
-                  <TableCell>Betrag</TableCell>
-                  <TableCell>Zahlung</TableCell>
+                {/* Spalten-Header mit Sortierung */}
+                <TableRow sx={{ '& th': { fontWeight: 'bold', backgroundColor: 'grey.50', whiteSpace: 'nowrap' } }}>
+                  {[
+                    { key: 'date',      label: 'Rechnungsdatum' },
+                    ...(showTimestamps ? [
+                      { key: 'createdAt', label: 'Erfasst am' },
+                      { key: 'updatedAt', label: 'Aktualisiert am' },
+                    ] : []),
+                    { key: 'person',    label: 'Person' },
+                    { key: 'product',   label: 'Produkt' },
+                    { key: 'amount',    label: 'Betrag' },
+                    { key: 'payment',   label: 'Zahlung' },
+                  ].map(({ key, label }) => (
+                    <TableCell key={key}>
+                      <TableSortLabel
+                        active={sortBy === key}
+                        direction={sortBy === key ? sortDir : 'asc'}
+                        onClick={() => handleSort(key)}
+                      >
+                        {label}
+                      </TableSortLabel>
+                    </TableCell>
+                  ))}
                   <TableCell>Notiz</TableCell>
                   <TableCell>Anhänge</TableCell>
                   <TableCell align="right">Aktionen</TableCell>
                 </TableRow>
+
+                {/* Spalten-Filterzeile */}
+                <TableRow sx={{ '& td': { py: 0.5, backgroundColor: 'grey.50', borderBottom: '2px solid', borderBottomColor: 'divider' } }}>
+                  {[
+                    { key: 'date',      placeholder: 'z.B. 04.2026' },
+                    ...(showTimestamps ? [
+                      { key: 'createdAt', placeholder: 'z.B. 04.2026' },
+                      { key: 'updatedAt', placeholder: 'z.B. 04.2026' },
+                    ] : []),
+                    { key: 'person',    placeholder: 'Name…' },
+                    { key: 'product',   placeholder: 'Produkt…' },
+                    { key: 'amount',    placeholder: 'Betrag…' },
+                    { key: 'payment',   placeholder: 'Zahlung…' },
+                    { key: 'note',      placeholder: 'Notiz…' },
+                  ].map(({ key, placeholder }) => (
+                    <TableCell key={key}>
+                      <TextField
+                        size="small"
+                        placeholder={placeholder}
+                        value={colFilters[key]}
+                        onChange={updateColFilter(key)}
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': { fontSize: '0.75rem', height: 28 },
+                          '& .MuiOutlinedInput-input': { py: 0, px: 1 },
+                          width: '100%',
+                          minWidth: 80,
+                        }}
+                        InputProps={colFilters[key] ? {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton size="small" sx={{ p: 0.25 }} onClick={() => { setColFilters(prev => ({ ...prev, [key]: '' })); setPage(0); }}>
+                                <CloseIcon sx={{ fontSize: 12 }} />
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        } : undefined}
+                      />
+                    </TableCell>
+                  ))}
+                  <TableCell />{/* Anhänge */}
+                  <TableCell />{/* Aktionen */}
+                </TableRow>
               </TableHead>
               <TableBody>
-                {filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(expense => {
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={showTimestamps ? 11 : 9} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                      Keine Daten gefunden
+                    </TableCell>
+                  </TableRow>
+                ) : filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(expense => {
                   const attachments = expense.attachments || [];
                   return (
                     <TableRow key={expense.id} hover>
-                      <TableCell>{expense.date}</TableCell>
+                      <TableCell>{fmtDate(expense.date)}</TableCell>
+                      {showTimestamps && (
+                        <>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>{fmtDate(expense.createdAt?.split('T')[0])}</TableCell>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>{fmtDate(expense.updatedAt?.split('T')[0])}</TableCell>
+                        </>
+                      )}
                       <TableCell>{getPersonName(expense.personId)}</TableCell>
                       <TableCell>{getProductName(expense.productId)}</TableCell>
-                      <TableCell sx={{ fontWeight: 'medium' }}>{parseFloat(expense.amount).toFixed(2)} €</TableCell>
+                      <TableCell sx={{ fontWeight: 'medium' }}>{fmtEuro(expense.amount)}</TableCell>
                       <TableCell>
                         <Chip label={expense.paymentMethod} color={paymentColors[expense.paymentMethod] || 'default'} size="small" />
                       </TableCell>
@@ -501,15 +634,17 @@ function Expenses() {
                   );
                 })}
               </TableBody>
+
               <TableFooter>
                 <TableRow sx={{ backgroundColor: 'grey.100', '& td': { borderTop: '2px solid', borderTopColor: 'grey.300' } }}>
-                  <TableCell colSpan={3} sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>
+                  <TableCell colSpan={showTimestamps ? 6 : 4} sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>
                     {hasFilter ? `Summe (gefiltert, ${filtered.length} Einträge)` : `Gesamtsumme (${filtered.length} Einträge)`}
                   </TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.95rem', color: 'primary.main' }}>
-                    {filtered.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0).toFixed(2)} €
+                    {fmtEuro(filtered.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0))}
                   </TableCell>
                   <TableCell colSpan={4} />
+
                 </TableRow>
               </TableFooter>
             </Table>

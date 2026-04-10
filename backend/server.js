@@ -50,22 +50,23 @@ for (const entity of ENTITIES) {
     res.json(readData(entity));
   });
 
-  // Neu anlegen — ID vergibt das Backend
+  // Neu anlegen — ID und Erfassungsdatum vergibt das Backend
   router.post('/', (req, res) => {
     const items = readData(entity);
-    const item = { ...req.body, id: Date.now() };
+    const now = new Date().toISOString();
+    const item = { ...req.body, id: Date.now(), createdAt: now, updatedAt: now };
     items.push(item);
     writeData(entity, items);
     res.status(201).json(item);
   });
 
-  // Aktualisieren
+  // Aktualisieren — Erfassungsdatum bleibt erhalten
   router.put('/:id', (req, res) => {
     const items = readData(entity);
     const id = Number(req.params.id);
     const idx = items.findIndex(i => i.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Nicht gefunden' });
-    items[idx] = { ...req.body, id };
+    items[idx] = { ...req.body, id, createdAt: items[idx].createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() };
     writeData(entity, items);
     res.json(items[idx]);
   });
@@ -108,6 +109,89 @@ app.delete('/api/uploads/:filename', (req, res) => {
   const filepath = path.join(UPLOADS_DIR, path.basename(req.params.filename));
   if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
   res.status(204).end();
+});
+
+// ── Sicherung (Backup) ────────────────────────────────────────────────────────
+const BACKUP_FILE = path.join(DATA_DIR, 'backup.json');
+
+function readBackup() {
+  if (!fs.existsSync(BACKUP_FILE)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+// Backup erstellen oder vorhandene Datei erweitern
+app.post('/api/backup', (_req, res) => {
+  try {
+    const now = new Date().toISOString();
+    const currentData = {};
+    const counts = {};
+    for (const entity of ENTITIES) {
+      currentData[entity] = readData(entity);
+      counts[entity] = currentData[entity].length;
+    }
+
+    const logEntry = { timestamp: now, counts };
+
+    const existing = readBackup();
+
+    let backup;
+    if (existing) {
+      // Vorhandene Datei erweitern: Log anhängen, Daten aktualisieren, neue Felder ergänzen
+      backup = {
+        ...existing,                          // alle bestehenden Felder erhalten
+        lastUpdated: now,
+        log: [...(existing.log ?? []), logEntry],
+        data: {
+          ...(existing.data ?? {}),           // ggf. neue Entitäten-Schlüssel ergänzen
+          ...currentData,
+        },
+      };
+    } else {
+      // Neue Sicherungsdatei anlegen
+      backup = {
+        version: 1,
+        created: now,
+        lastUpdated: now,
+        log: [logEntry],
+        data: currentData,
+      };
+    }
+
+    fs.writeFileSync(BACKUP_FILE, JSON.stringify(backup, null, 2), 'utf-8');
+
+    res.status(existing ? 200 : 201).json({
+      message: existing ? 'Sicherung erweitert' : 'Sicherung erstellt',
+      timestamp: now,
+      counts,
+      totalBackups: backup.log.length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Backup-Info abrufen
+app.get('/api/backup', (_req, res) => {
+  const backup = readBackup();
+  if (!backup) return res.json({ exists: false });
+  res.json({
+    exists: true,
+    created: backup.created,
+    lastUpdated: backup.lastUpdated,
+    totalBackups: backup.log?.length ?? 0,
+    log: backup.log ?? [],
+    counts: backup.log?.at(-1)?.counts ?? {},
+  });
+});
+
+// Backup als Datei herunterladen
+app.get('/api/backup/download', (_req, res) => {
+  if (!fs.existsSync(BACKUP_FILE)) return res.status(404).json({ error: 'Keine Sicherung vorhanden' });
+  res.download(BACKUP_FILE, `hausverwaltung-backup-${new Date().toISOString().slice(0, 10)}.json`);
 });
 
 // ── System-Status ─────────────────────────────────────────────────────────────

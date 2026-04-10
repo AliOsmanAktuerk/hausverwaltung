@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Box, Card, CardContent, Typography, Paper, Chip, Avatar, Stack, Tabs, Tab, Alert, Collapse, IconButton, LinearProgress, Tooltip as MuiTooltip } from '@mui/material';
+import { Box, Card, CardContent, Typography, Paper, Chip, Avatar, Stack, Tabs, Tab, Alert, Collapse, IconButton, LinearProgress, Tooltip as MuiTooltip, Button, CircularProgress } from '@mui/material';
+import BackupIcon from '@mui/icons-material/Backup';
+import DownloadIcon from '@mui/icons-material/Download';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PeopleIcon from '@mui/icons-material/People';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -18,7 +21,8 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { personsApi, productsApi, expensesApi, systemApi } from '../api';
+import { personsApi, productsApi, expensesApi, systemApi, backupApi } from '../api';
+import { fmtEuro, fmtDate } from '../utils/format';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
@@ -48,7 +52,7 @@ function KpiCard({ label, value, sub, Icon, gradient, trend }) {
                   ? <TrendingUpIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.9)' }} />
                   : <TrendingDownIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.9)' }} />}
                 <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)' }}>
-                  {isPositive ? '+' : ''}{trend.toFixed(0)} € ggü. Vormonat
+                  {isPositive ? '+' : ''}{fmtEuro(Math.abs(trend))} ggü. Vormonat
                 </Typography>
               </>
             )}
@@ -70,7 +74,7 @@ function CustomTooltip({ active, payload, label }) {
       <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mb: 0.5 }}>{label}</Typography>
       {payload.map((p, i) => (
         <Typography key={i} variant="body2" sx={{ color: p.color || '#fff', fontWeight: 600 }}>
-          {typeof p.value === 'number' ? `${p.value.toFixed(2)} €` : p.value}
+          {typeof p.value === 'number' ? fmtEuro(p.value) : p.value}
         </Typography>
       ))}
     </Box>
@@ -94,7 +98,7 @@ function TabMonatsverlauf({ monthlyData }) {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
             <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v} €`} width={65} />
+            <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => fmtEuro(v)} width={75} />
             <Tooltip content={<CustomTooltip />} />
             <Area type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={2.5}
               fill="url(#areaGrad)" dot={{ r: 4, fill: '#6366f1', strokeWidth: 0 }}
@@ -124,7 +128,7 @@ function TabPersonen({ perPersonData }) {
                 <Cell key={entry.name} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip formatter={(v) => `${v.toFixed(2)} €`} contentStyle={{
+            <Tooltip formatter={(v) => fmtEuro(v)} contentStyle={{
               backgroundColor: '#1e293b', border: 'none', borderRadius: 8, color: '#fff'
             }} />
             <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 13 }} />
@@ -146,7 +150,7 @@ function TabKostenstellen({ perKostenstelleData, paymentData }) {
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={perKostenstelleData} layout="vertical" margin={{ top: 0, right: 15, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v} €`} />
+                <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => fmtEuro(v)} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={100} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
@@ -208,7 +212,7 @@ function TabRanking({ topPersons, totalAmount, recentExpenses, persons, products
                     </Box>
                     <Box display="flex" alignItems="center" gap={1.5}>
                       <Typography variant="caption" color="text.secondary">{pct.toFixed(1)}%</Typography>
-                      <Typography variant="body2" fontWeight="bold">{p.value.toFixed(2)} €</Typography>
+                      <Typography variant="body2" fontWeight="bold">{fmtEuro(p.value)}</Typography>
                     </Box>
                   </Box>
                   <Box sx={{ height: 8, borderRadius: 4, backgroundColor: 'grey.100', overflow: 'hidden' }}>
@@ -237,10 +241,10 @@ function TabRanking({ topPersons, totalAmount, recentExpenses, persons, products
                   </Avatar>
                   <Box flex={1} minWidth={0}>
                     <Typography variant="caption" fontWeight="bold" noWrap display="block">{product?.name || '—'}</Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap display="block">{person?.name || '—'} · {exp.date}</Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap display="block">{person?.name || '—'} · {fmtDate(exp.date)}</Typography>
                   </Box>
                   <Typography variant="body2" fontWeight="bold" sx={{ color: '#6366f1', whiteSpace: 'nowrap' }}>
-                    {parseFloat(exp.amount).toFixed(2)} €
+                    {fmtEuro(exp.amount)}
                   </Typography>
                 </Box>
               );
@@ -249,6 +253,97 @@ function TabRanking({ topPersons, totalAmount, recentExpenses, persons, products
         </Box>
       </div>
     </Box>
+  );
+}
+
+// ── Sicherungs-Widget ─────────────────────────────────────────────────────────
+function BackupWidget() {
+  const [info, setInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const fetchInfo = () => backupApi.getInfo().then(setInfo).catch(() => {});
+
+  useEffect(() => { fetchInfo(); }, []);
+
+  const handleBackup = async () => {
+    setLoading(true);
+    setSuccess(false);
+    try {
+      await backupApi.create();
+      await fetchInfo();
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch {
+      // Fehler still ignorieren — kein Absturz
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', p: 2.5, mb: 3 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <BackupIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+          <Typography variant="subtitle2" fontWeight="bold">Datensicherung</Typography>
+          {info?.exists && (
+            <Chip
+              label={`${info.totalBackups} Sicherung${info.totalBackups !== 1 ? 'en' : ''}`}
+              size="small"
+              variant="outlined"
+              sx={{ fontSize: '0.7rem', height: 22 }}
+            />
+          )}
+        </Box>
+        <Box display="flex" gap={1} alignItems="center">
+          {success && (
+            <Box display="flex" alignItems="center" gap={0.5}>
+              <CheckCircleIcon sx={{ fontSize: 16, color: '#10b981' }} />
+              <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 600 }}>Gesichert</Typography>
+            </Box>
+          )}
+          {info?.exists && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              href={backupApi.downloadUrl()}
+              download
+              sx={{ textTransform: 'none', fontSize: '0.75rem', height: 30 }}
+            >
+              Herunterladen
+            </Button>
+          )}
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={loading ? <CircularProgress size={12} color="inherit" /> : <BackupIcon />}
+            onClick={handleBackup}
+            disabled={loading}
+            sx={{ textTransform: 'none', fontSize: '0.75rem', height: 30, backgroundColor: '#6366f1', '&:hover': { backgroundColor: '#4f46e5' } }}
+          >
+            {info?.exists ? 'Sicherung aktualisieren' : 'Sicherung erstellen'}
+          </Button>
+        </Box>
+      </Box>
+
+      {info?.exists && (
+        <Box mt={1.5} display="flex" gap={3} flexWrap="wrap">
+          <Typography variant="caption" color="text.secondary">
+            Erstellt: <strong>{new Date(info.created).toLocaleString('de-DE')}</strong>
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Letzte Sicherung: <strong>{new Date(info.lastUpdated).toLocaleString('de-DE')}</strong>
+          </Typography>
+          {info.counts && Object.entries(info.counts).map(([k, v]) => (
+            <Typography key={k} variant="caption" color="text.secondary">
+              {k}: <strong>{v}</strong>
+            </Typography>
+          ))}
+        </Box>
+      )}
+    </Paper>
   );
 }
 
@@ -450,9 +545,9 @@ function Dashboard() {
 
       {/* KPI Karten */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Gesamtkosten" value={`${totalAmount.toFixed(2)} €`} Icon={EuroIcon}
+        <KpiCard label="Gesamtkosten" value={fmtEuro(totalAmount)} Icon={EuroIcon}
           gradient="linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)" trend={trend} />
-        <KpiCard label="Dieser Monat" value={`${thisMonthTotal.toFixed(2)} €`} Icon={CalendarMonthIcon}
+        <KpiCard label="Dieser Monat" value={fmtEuro(thisMonthTotal)} Icon={CalendarMonthIcon}
           gradient="linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)"
           sub={`${expenses.filter(e => e.date?.startsWith(thisMonth)).length} Buchungen`} />
         <KpiCard label="Kostenstellen" value={products.length} Icon={InventoryIcon}
@@ -462,6 +557,9 @@ function Dashboard() {
           gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
           sub={topPersons[0] ? `Top: ${topPersons[0].name}` : 'Keine Daten'} />
       </div>
+
+      {/* Datensicherung */}
+      <BackupWidget />
 
       {/* System-Status */}
       <SystemStatusWidget systemStatus={systemStatus} />

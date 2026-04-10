@@ -34,6 +34,12 @@ export const systemApi = {
   getStatus: () => request('GET', '/api/system/status'),
 };
 
+export const backupApi = {
+  getInfo:  () => request('GET',  '/api/backup'),
+  create:   () => request('POST', '/api/backup'),
+  downloadUrl: () => '/api/backup/download',
+};
+
 export const uploadsApi = {
   upload: async (file) => {
     const form = new FormData();

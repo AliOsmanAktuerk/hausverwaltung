@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Paper, Typography, Box } from '@mui/material';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { fmtEuro } from '../utils/format';
 
 const FALLBACK_COLORS = [
   '#1976d2', '#2e7d32', '#ed6c02', '#9c27b0',
@@ -15,7 +16,7 @@ function PersonPieChart({ person, data }) {
       <Box display="flex" alignItems="center" gap={1} mb={1} justifyContent="center">
         <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: person.color, flexShrink: 0 }} />
         <Typography variant="subtitle2" fontWeight="bold">{person.name}</Typography>
-        <Typography variant="caption" color="text.secondary">({total.toFixed(2)} €)</Typography>
+        <Typography variant="caption" color="text.secondary">({fmtEuro(total)})</Typography>
       </Box>
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
@@ -32,7 +33,7 @@ function PersonPieChart({ person, data }) {
               <Cell key={entry.name} fill={FALLBACK_COLORS[i % FALLBACK_COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value) => `${value.toFixed(2)} €`} />
+          <Tooltip formatter={(value) => fmtEuro(value)} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
         </PieChart>
       </ResponsiveContainer>
