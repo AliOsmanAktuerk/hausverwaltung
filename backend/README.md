@@ -39,6 +39,7 @@ data/
 ├── persons.json       # Personen
 ├── products.json      # Kostenstellen
 ├── expenses.json      # Buchungen
+├── hours.json         # Stundeneinträge
 ├── backup.json        # Datensicherung
 ├── users.json         # Benutzer (Passwort-Hashes) ← nicht im Repo
 ├── .jwt_secret        # JWT-Schlüssel (zufällig generiert) ← nicht im Repo
@@ -81,6 +82,10 @@ Alle Endpunkte außer `POST /api/auth/login` erfordern:
 | POST | `/api/expenses` | Kostenposition anlegen |
 | PUT | `/api/expenses/:id` | Kostenposition aktualisieren |
 | DELETE | `/api/expenses/:id` | Kostenposition löschen |
+| GET | `/api/hours` | Alle Stundeneinträge |
+| POST | `/api/hours` | Stundeneintrag anlegen |
+| PUT | `/api/hours/:id` | Stundeneintrag aktualisieren |
+| DELETE | `/api/hours/:id` | Stundeneintrag löschen |
 
 ### Uploads
 

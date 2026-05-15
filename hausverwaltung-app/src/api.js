@@ -54,6 +54,13 @@ export const expensesApi = {
   remove: (id) => request('DELETE', `/api/expenses/${id}`),
 };
 
+export const hoursApi = {
+  getAll: () => request('GET', '/api/hours'),
+  create: (data) => request('POST', '/api/hours', data),
+  update: (id, data) => request('PUT', `/api/hours/${id}`, data),
+  remove: (id) => request('DELETE', `/api/hours/${id}`),
+};
+
 export const systemApi = {
   getStatus: () => request('GET', '/api/system/status'),
 };

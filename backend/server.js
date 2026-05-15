@@ -12,7 +12,7 @@ import bcrypt from 'bcryptjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
-const ENTITIES = ['persons', 'products', 'expenses'];
+const ENTITIES = ['persons', 'products', 'expenses', 'hours'];
 
 // Sicherstellen, dass data-Verzeichnis und JSON-Dateien existieren
 fs.mkdirSync(DATA_DIR, { recursive: true });

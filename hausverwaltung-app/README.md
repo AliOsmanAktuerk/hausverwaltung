@@ -27,6 +27,7 @@ React-Anwendung für das Buchungssystem. Gebaut mit Vite, Material UI und Tailwi
 | `/products` | Kostenstellen | Kategorien & Beschreibungen |
 | `/expenses` | Kosten | Buchungen, Anhänge, PDF-Export |
 | `/analytics` | Analytics | Jahresvergleich, Trends, Top-10 |
+| `/hours` | Stunden | Stundenaufwandsliste, KPIs, Personenübersicht |
 | `/settings` | Einstellungen | Passwort, Benutzer, Integrität |
 | `/login` | Login | JWT-Anmeldung |
 
@@ -40,6 +41,7 @@ src/
 │   ├── Dashboard.jsx       # Übersicht & Charts
 │   ├── Analytics.jsx       # Detaillierte Auswertungen
 │   ├── Expenses.jsx        # Kostenverwaltung + PDF
+│   ├── Hours.jsx           # Stundenaufwandsliste
 │   ├── Persons.jsx
 │   ├── Products.jsx
 │   ├── Login.jsx
