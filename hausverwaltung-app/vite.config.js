@@ -12,8 +12,8 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192.svg', 'pwa-512.svg'],
       manifest: {
-        name: 'Hausverwaltung',
-        short_name: 'Hausverwaltung',
+        name: 'Buchungssystem',
+        short_name: 'Buchungssystem',
         description: 'Verwaltung von Personen, Kostenstellen und Ausgaben',
         theme_color: '#6366f1',
         background_color: '#ffffff',

@@ -2,7 +2,7 @@
 set -e
 
 echo "============================================"
-echo "  Hausverwaltung – Setup & Start"
+echo "  Buchungssystem – Setup & Start"
 echo "============================================"
 
 # Node.js Version prüfen

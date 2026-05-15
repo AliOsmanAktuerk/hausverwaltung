@@ -1,15 +1,26 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { AppBar, Toolbar, Typography, Box, Container, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, IconButton, useTheme, useMediaQuery } from '@mui/material';
+import {
+  AppBar, Toolbar, Typography, Box, Container, Drawer, List, ListItem,
+  ListItemButton, ListItemIcon, ListItemText, IconButton, useTheme,
+  useMediaQuery, Tooltip, CircularProgress,
+} from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import SettingsIcon from '@mui/icons-material/Settings';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import Dashboard from './pages/Dashboard';
 import Persons from './pages/Persons';
 import Products from './pages/Products';
 import Expenses from './pages/Expenses';
+import Analytics from './pages/Analytics';
+import Settings from './pages/Settings';
+import Login from './pages/Login';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const drawerWidth = 240;
 
@@ -18,13 +29,26 @@ const menuItems = [
   { text: 'Personen', icon: <PeopleIcon />, path: '/persons' },
   { text: 'Kostenstelle', icon: <InventoryIcon />, path: '/products' },
   { text: 'Kosten', icon: <ReceiptIcon />, path: '/expenses' },
+  { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
+  { text: 'Einstellungen', icon: <SettingsIcon />, path: '/settings' },
 ];
 
 function AppContent() {
+  const { user, logout, loading } = useAuth();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!user) return <Login />;
 
   const drawerContent = (
     <Box sx={{ overflow: 'auto' }}>
@@ -60,9 +84,17 @@ function AppContent() {
               <MenuIcon />
             </IconButton>
           )}
-          <Typography variant="h6" noWrap component="div">
-            Hausverwaltung
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+            Buchungssystem
           </Typography>
+          <Typography variant="body2" sx={{ mr: 1, opacity: 0.8 }}>
+            {user.username}
+          </Typography>
+          <Tooltip title="Abmelden">
+            <IconButton color="inherit" onClick={logout}>
+              <LogoutIcon />
+            </IconButton>
+          </Tooltip>
         </Toolbar>
       </AppBar>
 
@@ -110,6 +142,8 @@ function AppContent() {
             <Route path="/persons" element={<Persons />} />
             <Route path="/products" element={<Products />} />
             <Route path="/expenses" element={<Expenses />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Container>
       </Box>
@@ -119,9 +153,11 @@ function AppContent() {
 
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }
 

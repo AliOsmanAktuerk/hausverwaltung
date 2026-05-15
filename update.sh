@@ -17,7 +17,7 @@ cd "$SCRIPT_DIR"
 
 echo ""
 echo "============================================"
-echo "  Hausverwaltung – Update"
+echo "  Buchungssystem – Update"
 echo "============================================"
 
 # ── Speicherplatz prüfen ──────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ read -p "Update jetzt installieren? (J/n): " CONFIRM
 
 # ── Backup der Daten ──────────────────────────────────────────────────────────
 step "Datensicherung erstellen..."
-BACKUP_FILE="$HOME/backup-hausverwaltung-$(date +%F-%H%M).tar.gz"
+BACKUP_FILE="$HOME/backup-buchungssystem-$(date +%F-%H%M).tar.gz"
 tar -czf "$BACKUP_FILE" backend/data/ 2>/dev/null && ok "Backup: $BACKUP_FILE" || warn "Backup konnte nicht erstellt werden (wird ignoriert)"
 
 # ── Git Pull ──────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ ok "Aktualisiert auf: $NEW"
 
 # ── Dependencies aktualisieren ────────────────────────────────────────────────
 step "Frontend-Dependencies aktualisieren..."
-npm install --prefix hausverwaltung-app --prefer-offline 2>&1 | tail -1
+npm install --prefix buchungssystem-app --prefer-offline 2>&1 | tail -1
 ok "Frontend-Dependencies aktuell"
 
 step "Backend-Dependencies aktualisieren..."
@@ -79,18 +79,18 @@ ok "Backend-Dependencies aktuell"
 
 # ── Frontend bauen ────────────────────────────────────────────────────────────
 step "Frontend bauen..."
-npm run build --prefix hausverwaltung-app 2>&1 | grep -E "✓|✘|error" || true
+npm run build --prefix buchungssystem-app 2>&1 | grep -E "✓|✘|error" || true
 ok "Frontend Build fertig"
 
 # ── Service neu starten ───────────────────────────────────────────────────────
 step "Service neu starten..."
-if systemctl is-active --quiet hausverwaltung 2>/dev/null; then
-  sudo systemctl restart hausverwaltung
+if systemctl is-active --quiet buchungssystem 2>/dev/null; then
+  sudo systemctl restart buchungssystem
   sleep 2
-  if systemctl is-active --quiet hausverwaltung; then
+  if systemctl is-active --quiet buchungssystem; then
     ok "Service erfolgreich neu gestartet"
   else
-    fail "Service-Neustart fehlgeschlagen.\n  Logs: sudo journalctl -u hausverwaltung -n 20"
+    fail "Service-Neustart fehlgeschlagen.\n  Logs: sudo journalctl -u buchungssystem -n 20"
   fi
 else
   warn "systemd-Service nicht aktiv. Bitte manuell starten: bash start.sh"

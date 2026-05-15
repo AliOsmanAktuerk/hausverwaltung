@@ -4,7 +4,7 @@ import {
   TableCell, TableContainer, TableHead, TableRow, Stack, Box,
   FormControl, InputLabel, Select, MenuItem, Chip, Divider,
   IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions,
-  InputAdornment, TablePagination, TableSortLabel,
+  InputAdornment, TablePagination, TableSortLabel, CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -19,8 +19,10 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import DownloadIcon from '@mui/icons-material/Download';
 import { expensesApi, personsApi, productsApi, uploadsApi } from '../api';
 import { fmtEuro, fmtDate } from '../utils/format';
+import { exportExpensesPdf, exportSingleExpensePdf } from '../utils/exportPdf';
 
 const paymentMethods = ['Bar', 'Karte', 'Überweisung', 'Lastschrift'];
 const paymentColors = { Bar: 'default', Karte: 'primary', Überweisung: 'success', Lastschrift: 'warning' };
@@ -320,6 +322,44 @@ function Expenses() {
   const [sortDir, setSortDir] = useState('desc');
   const [colFilters, setColFilters] = useState({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', payment: '', note: '' });
   const [showTimestamps, setShowTimestamps] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState('');
+  const [rowPdfLoading, setRowPdfLoading] = useState(null); // expense.id
+
+  const handleRowExportPdf = async (expense) => {
+    setRowPdfLoading(expense.id);
+    try {
+      await exportSingleExpensePdf({ expense, persons, products });
+    } finally {
+      setRowPdfLoading(null);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    setPdfLoading(true);
+    setPdfProgress('PDF wird erstellt…');
+    try {
+      // Beschreibung der aktiven Filter für das PDF
+      const filterParts = [];
+      if (search) filterParts.push(`Suche: „${search}"`);
+      if (filterPerson)  filterParts.push(`Person: ${persons.find(p => String(p.id) === String(filterPerson))?.name}`);
+      if (filterProduct) filterParts.push(`Kostenstelle: ${products.find(p => String(p.id) === String(filterProduct))?.name}`);
+      if (filterPayment) filterParts.push(`Zahlung: ${filterPayment}`);
+      if (filterDateFrom) filterParts.push(`Von: ${fmtDate(filterDateFrom)}`);
+      if (filterDateTo)   filterParts.push(`Bis: ${fmtDate(filterDateTo)}`);
+
+      await exportExpensesPdf({
+        expenses: filtered,
+        persons,
+        products,
+        filterDescription: filterParts.length ? filterParts.join('  |  ') : null,
+        onProgress: (msg) => setPdfProgress(msg),
+      });
+    } finally {
+      setPdfLoading(false);
+      setPdfProgress('');
+    }
+  };
 
   const handleSort = (col) => {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -425,10 +465,17 @@ function Expenses() {
       <Typography variant="h5" gutterBottom fontWeight="bold">Kosten Dokumentation</Typography>
 
       <Paper elevation={2}>
-        <Box px={3} py={2} display="flex" alignItems="center" justifyContent="space-between">
-          <Typography variant="h6">
-            Alle Kostenpositionen ({filtered.length}{hasFilter && filtered.length !== expenses.length ? ` von ${expenses.length}` : ''})
-          </Typography>
+        <Box px={3} py={2} display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+          <Box>
+            <Typography variant="h6">
+              Alle Kostenpositionen ({filtered.length}{hasFilter && filtered.length !== expenses.length ? ` von ${expenses.length}` : ''})
+            </Typography>
+            {pdfLoading && (
+              <Typography variant="caption" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <CircularProgress size={10} /> {pdfProgress}
+              </Typography>
+            )}
+          </Box>
           <Stack direction="row" spacing={1}>
             <Tooltip title={showTimestamps ? 'Zeitstempel ausblenden' : 'Zeitstempel einblenden'}>
               <IconButton
@@ -442,6 +489,18 @@ function Expenses() {
               >
                 <AccessTimeIcon fontSize="small" />
               </IconButton>
+            </Tooltip>
+            <Tooltip title={`PDF exportieren (${filtered.length} Einträge${hasFilter ? ', gefiltert' : ''})`}>
+              <span>
+                <Button
+                  variant="outlined"
+                  startIcon={pdfLoading ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                  onClick={handleExportPdf}
+                  disabled={pdfLoading || filtered.length === 0}
+                >
+                  PDF
+                </Button>
+              </span>
             </Tooltip>
             <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Neu</Button>
           </Stack>
@@ -622,6 +681,18 @@ function Expenses() {
                       </TableCell>
                       <TableCell align="right">
                         <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          <Tooltip title="PDF herunterladen">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRowExportPdf(expense)}
+                              disabled={rowPdfLoading === expense.id}
+                              sx={{ color: '#6366f1' }}
+                            >
+                              {rowPdfLoading === expense.id
+                                ? <CircularProgress size={14} color="inherit" />
+                                : <PictureAsPdfIcon fontSize="small" />}
+                            </IconButton>
+                          </Tooltip>
                           <IconButton size="small" onClick={() => openEdit(expense)}>
                             <EditIcon fontSize="small" />
                           </IconButton>
