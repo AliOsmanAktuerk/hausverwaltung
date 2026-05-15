@@ -137,23 +137,44 @@ function AppContent() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, sm: 3 },
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
           width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
         }}
       >
         <Toolbar />
-        <Container maxWidth="lg" disableGutters={isMobile}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/persons" element={<Persons />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/expenses" element={<Expenses />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/hours" element={<Hours />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/about" element={<About />} />
-          </Routes>
-        </Container>
+        <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
+          <Container maxWidth="lg" disableGutters={isMobile}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/persons" element={<Persons />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/expenses" element={<Expenses />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/hours" element={<Hours />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/about" element={<About />} />
+            </Routes>
+          </Container>
+        </Box>
+
+        <Box
+          component="footer"
+          sx={{
+            py: 1.5,
+            px: 3,
+            mt: 'auto',
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            © {new Date().getFullYear()} Aktürk Brothers · Buchungssystem · Alle Rechte vorbehalten
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
