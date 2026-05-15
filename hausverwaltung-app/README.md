@@ -1,16 +1,86 @@
-# React + Vite
+# Buchungssystem – Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React-Anwendung für das Buchungssystem. Gebaut mit Vite, Material UI und Tailwind CSS.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Technologie-Stack
 
-## React Compiler
+| Paket | Version | Zweck |
+|---|---|---|
+| React | 19 | UI-Framework |
+| Vite | 8 | Build-Tool & Dev-Server |
+| Material UI | 7 | Komponenten-Bibliothek |
+| Tailwind CSS | 4 | Utility-Klassen |
+| React Router | 7 | Client-seitiges Routing |
+| Recharts | 3 | Diagramme & Charts |
+| jsPDF + autotable | 4 / 5 | PDF-Generierung |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## Seiten
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Route | Seite | Beschreibung |
+|---|---|---|
+| `/` | Dashboard | KPI-Karten, Charts, Backup-Widget |
+| `/persons` | Personen | Verwaltung mit Farbzuweisung |
+| `/products` | Kostenstellen | Kategorien & Beschreibungen |
+| `/expenses` | Kosten | Buchungen, Anhänge, PDF-Export |
+| `/analytics` | Analytics | Jahresvergleich, Trends, Top-10 |
+| `/settings` | Einstellungen | Passwort, Benutzer, Integrität |
+| `/login` | Login | JWT-Anmeldung |
+
+---
+
+## Struktur
+
+```
+src/
+├── pages/
+│   ├── Dashboard.jsx       # Übersicht & Charts
+│   ├── Analytics.jsx       # Detaillierte Auswertungen
+│   ├── Expenses.jsx        # Kostenverwaltung + PDF
+│   ├── Persons.jsx
+│   ├── Products.jsx
+│   ├── Login.jsx
+│   └── Settings.jsx
+├── context/
+│   └── AuthContext.jsx     # JWT-Auth-State (login, logout, verify)
+├── components/
+│   └── ExpenseChart.jsx
+├── utils/
+│   ├── exportPdf.js        # PDF-Generierung (Liste + Einzelbeleg)
+│   └── format.js           # fmtEuro, fmtDate
+└── api.js                  # Fetch-Wrapper mit Auth-Header
+```
+
+---
+
+## Entwicklung
+
+```bash
+npm install
+npm run dev        # Dev-Server auf http://localhost:5173
+```
+
+Der Dev-Server leitet `/api/*` automatisch an `http://localhost:8090` weiter (Vite-Proxy).
+
+## Build
+
+```bash
+npm run build      # Produktions-Build → dist/
+```
+
+Das `dist/`-Verzeichnis wird vom Backend-Server statisch ausgeliefert.
+
+---
+
+## Umgebung
+
+Keine `.env`-Datei nötig. Der API-Proxy ist in `vite.config.js` konfiguriert:
+
+```js
+server: {
+  proxy: { '/api': 'http://localhost:8090' }
+}
+```
