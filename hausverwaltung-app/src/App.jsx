@@ -14,6 +14,7 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Dashboard from './pages/Dashboard';
 import Persons from './pages/Persons';
 import Products from './pages/Products';
@@ -21,6 +22,7 @@ import Expenses from './pages/Expenses';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Hours from './pages/Hours';
+import About from './pages/About';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -34,6 +36,7 @@ const menuItems = [
   { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
   { text: 'Stunden', icon: <AccessTimeIcon />, path: '/hours' },
   { text: 'Einstellungen', icon: <SettingsIcon />, path: '/settings' },
+  { text: 'Über die App', icon: <InfoOutlinedIcon />, path: '/about' },
 ];
 
 function AppContent() {
@@ -148,6 +151,7 @@ function AppContent() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/hours" element={<Hours />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/about" element={<About />} />
           </Routes>
         </Container>
       </Box>
