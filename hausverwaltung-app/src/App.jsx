@@ -14,12 +14,14 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Dashboard from './pages/Dashboard';
 import Persons from './pages/Persons';
 import Products from './pages/Products';
 import Expenses from './pages/Expenses';
 import Analytics from './pages/Analytics';
+import Finanzauswertung from './pages/Finanzauswertung';
 import Settings from './pages/Settings';
 import Hours from './pages/Hours';
 import About from './pages/About';
@@ -34,6 +36,7 @@ const menuItems = [
   { text: 'Kostenstelle', icon: <InventoryIcon />, path: '/products' },
   { text: 'Kosten', icon: <ReceiptIcon />, path: '/expenses' },
   { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
+  { text: 'Bilanz & GuV', icon: <AccountBalanceIcon />, path: '/finanzauswertung' },
   { text: 'Stunden', icon: <AccessTimeIcon />, path: '/hours' },
   { text: 'Einstellungen', icon: <SettingsIcon />, path: '/settings' },
   { text: 'Über die App', icon: <InfoOutlinedIcon />, path: '/about' },
@@ -152,6 +155,7 @@ function AppContent() {
               <Route path="/products" element={<Products />} />
               <Route path="/expenses" element={<Expenses />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/finanzauswertung" element={<Finanzauswertung />} />
               <Route path="/hours" element={<Hours />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />

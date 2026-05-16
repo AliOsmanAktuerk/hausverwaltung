@@ -153,6 +153,7 @@ export async function exportSingleExpensePdf({ expense, persons, products }) {
     ['Datum',        fmtDate(expense.date)],
     ['Kostenstelle', product],
     ['Betrag',       fmtEuro(expense.amount)],
+    ['Typ',          expense.type || 'Ausgabe'],
     ['Zahlungsart',  expense.paymentMethod || '—'],
     ['Notiz',        expense.note || '—'],
     ['Erfasst am',   expense.createdAt ? new Date(expense.createdAt).toLocaleString('de-DE') : '—'],
@@ -172,7 +173,7 @@ export async function exportSingleExpensePdf({ expense, persons, products }) {
     },
     didParseCell: (data) => {
       // Betrag-Zeile hervorheben
-      if (data.row.index === 3) {
+      if (data.row.index === 3 && data.column.index === 1) {
         data.cell.styles.textColor = BRAND_COLOR;
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.fontSize  = 11;
@@ -278,7 +279,10 @@ export async function exportExpensesPdf({
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const getName  = (arr, id) => arr.find(x => String(x.id) === String(id))?.name ?? '—';
-  const totalAmt = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  const totalAmt        = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  const totalEinnahmen  = expenses.reduce((s, e) => (e.type || 'Ausgabe') === 'Einnahme' ? s + parseFloat(e.amount || 0) : s, 0);
+  const totalAusgaben   = expenses.reduce((s, e) => (e.type || 'Ausgabe') === 'Ausgabe'  ? s + parseFloat(e.amount || 0) : s, 0);
+  const saldo           = totalEinnahmen - totalAusgaben;
   const now      = new Date().toLocaleString('de-DE');
 
   // ── Titelblock ────────────────────────────────────────────────────────────
@@ -295,6 +299,7 @@ export async function exportExpensesPdf({
     getName(persons, e.personId),
     getName(products, e.productId),
     fmtEuro(e.amount),
+    e.type || 'Ausgabe',
     e.paymentMethod || '—',
     e.note || '',
     (e.attachments || []).length > 0
@@ -303,9 +308,13 @@ export async function exportExpensesPdf({
   ]);
 
   autoTable(doc, {
-    head: [['Datum', 'Person', 'Kostenstelle', 'Betrag', 'Zahlung', 'Notiz', 'Anhänge']],
+    head: [['Datum', 'Person', 'Kostenstelle', 'Betrag', 'Typ', 'Zahlung', 'Notiz', 'Anhänge']],
     body: rows,
-    foot: [['', '', 'Gesamtsumme', fmtEuro(totalAmt), '', '', '']],
+    foot: [
+      ['', '', 'Einnahmen', fmtEuro(totalEinnahmen), '', '', '', ''],
+      ['', '', 'Ausgaben',  fmtEuro(totalAusgaben),  '', '', '', ''],
+      ['', '', 'Saldo',     fmtEuro(saldo),           '', '', '', ''],
+    ],
     startY: tableStartY,
     margin: { left: MARGIN, right: MARGIN },
     styles: {
@@ -329,13 +338,14 @@ export async function exportExpensesPdf({
     },
     alternateRowStyles: { fillColor: ROW_ALT },
     columnStyles: {
-      0: { cellWidth: 22 },   // Datum
-      1: { cellWidth: 28 },   // Person
-      2: { cellWidth: 35 },   // Kostenstelle
-      3: { cellWidth: 24, halign: 'right' }, // Betrag
-      4: { cellWidth: 22 },   // Zahlung
-      5: { cellWidth: 'auto' }, // Notiz
-      6: { cellWidth: 28 },   // Anhänge
+      0: { cellWidth: 20 },   // Datum
+      1: { cellWidth: 26 },   // Person
+      2: { cellWidth: 30 },   // Kostenstelle
+      3: { cellWidth: 22, halign: 'right' }, // Betrag
+      4: { cellWidth: 20 },   // Typ
+      5: { cellWidth: 20 },   // Zahlung
+      6: { cellWidth: 'auto' }, // Notiz
+      7: { cellWidth: 24 },   // Anhänge
     },
     didDrawPage: () => {
       // Schmaler Balken oben auf jeder neuen Seite

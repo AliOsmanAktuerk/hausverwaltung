@@ -7,7 +7,10 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import StorageIcon from '@mui/icons-material/Storage';
 import WebIcon from '@mui/icons-material/Web';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import { useState } from 'react';
+
+const APP_VERSION = '1.1.0';
 
 function SectionTitle({ children }) {
   return (
@@ -72,7 +75,7 @@ function OverviewTab() {
       'Dashboard – KPI-Karten, interaktive Charts (Monatsverlauf, Personen, Kostenstellen, Ranking)',
       'Personen – Verwaltung mit individueller Farbzuweisung',
       'Kostenstellen – Kategorien mit Beschreibung und Zuordnung',
-      'Kosten – Buchungen mit Betrag, Datum, Zahlungsart, Notiz und Dateianhängen',
+      'Kosten – Buchungen mit Betrag, Datum, Typ (Einnahme/Ausgabe), Zahlungsart, Notiz und Dateianhängen',
       'Stunden – Stundenaufwandsliste mit KPIs und Personenübersicht',
       'Datei-Upload – Drag & Drop, Foto-Vorschau mit Lightbox-Galerie',
     ]},
@@ -82,8 +85,9 @@ function OverviewTab() {
       'Kryptografische Integrität – SHA-256-Hash-Kette pro Eintrag (ähnlich Blockchain)',
     ]},
     { category: 'Auswertung & Export', items: [
+      'Bilanz & GuV – automatische GuV-Rechnung und vereinfachte Bilanz; filterbar nach Jahr, Quartal, Monat',
       'Analytics – Jahresvergleich, Personen-Verlauf, Kostenstellen-Entwicklung, Top-10-Tabelle',
-      'PDF-Export – Gesamtliste (gefiltert) als PDF mit eingebetteten Bildbelegen',
+      'PDF-Export – Gesamtliste (gefiltert) mit Typ-Spalte und Einnahmen/Ausgaben/Saldo-Fußzeile',
       'Einzel-Beleg PDF – pro Buchung ein vollständiger Beleg mit Integritäts-Hash',
     ]},
     { category: 'Technik', items: [
@@ -99,11 +103,12 @@ function OverviewTab() {
     ['/', 'Dashboard', 'KPI-Karten, Charts, Backup-Widget'],
     ['/persons', 'Personen', 'Verwaltung mit Farbzuweisung'],
     ['/products', 'Kostenstellen', 'Kategorien & Beschreibungen'],
-    ['/expenses', 'Kosten', 'Buchungen, Anhänge, PDF-Export'],
+    ['/expenses', 'Kosten', 'Buchungen (Einnahme/Ausgabe), Anhänge, PDF-Export'],
     ['/analytics', 'Analytics', 'Jahresvergleich, Trends, Top-10'],
+    ['/finanzauswertung', 'Bilanz & GuV', 'GuV-Rechnung & Bilanz auf Basis der Buchungen'],
     ['/hours', 'Stunden', 'Stundenaufwandsliste, KPIs, Personenübersicht'],
     ['/settings', 'Einstellungen', 'Passwort, Benutzer, Integrität'],
-    ['/about', 'Über die App', 'Dokumentation & API-Referenz'],
+    ['/about', 'Über die App', 'Dokumentation, Changelog & API-Referenz'],
   ];
 
   return (
@@ -155,23 +160,24 @@ function FrontendTab() {
       <SectionTitle>Struktur</SectionTitle>
       <CodeBlock>{`src/
 ├── pages/
-│   ├── Dashboard.jsx       # Übersicht & Charts
-│   ├── Analytics.jsx       # Detaillierte Auswertungen
-│   ├── Expenses.jsx        # Kostenverwaltung + PDF
-│   ├── Hours.jsx           # Stundenaufwandsliste
+│   ├── Dashboard.jsx            # Übersicht & Charts
+│   ├── Analytics.jsx            # Detaillierte Auswertungen
+│   ├── Expenses.jsx             # Kostenverwaltung + PDF (Einnahme/Ausgabe)
+│   ├── Finanzauswertung.jsx     # Bilanz & GuV  ← neu v1.1.0
+│   ├── Hours.jsx                # Stundenaufwandsliste
 │   ├── Persons.jsx
 │   ├── Products.jsx
 │   ├── Login.jsx
 │   ├── Settings.jsx
-│   └── About.jsx           # Diese Seite
+│   └── About.jsx                # Diese Seite
 ├── context/
-│   └── AuthContext.jsx     # JWT-Auth-State (login, logout, verify)
+│   └── AuthContext.jsx          # JWT-Auth-State (login, logout, verify)
 ├── components/
 │   └── ExpenseChart.jsx
 ├── utils/
-│   ├── exportPdf.js        # PDF-Generierung (Liste + Einzelbeleg)
-│   └── format.js           # fmtEuro, fmtDate
-└── api.js                  # Fetch-Wrapper mit Auth-Header`}</CodeBlock>
+│   ├── exportPdf.js             # PDF-Generierung (Liste + Einzelbeleg)
+│   └── format.js                # fmtEuro, fmtDate
+└── api.js                       # Fetch-Wrapper mit Auth-Header`}</CodeBlock>
 
       <SectionTitle>Entwicklung</SectionTitle>
       <CodeBlock>{`npm install
@@ -334,6 +340,101 @@ http://raspberrypi.local:8090`}</CodeBlock>
   );
 }
 
+// ---------- Tab 5: Changelog ----------
+function ChangelogTab() {
+  const releases = [
+    {
+      version: '1.1.0',
+      date: '2026-05-17',
+      isLatest: true,
+      added: [
+        'Typ-Feld „Einnahme / Ausgabe" — jede Buchung wird klassifiziert (Pflichtfeld, Standard: Ausgabe)',
+        'Seite „Bilanz & GuV" (/finanzauswertung) — GuV-Rechnung und vereinfachte Bilanz automatisch aus Buchungsstand',
+        'Periodenfilter für Bilanz & GuV — Gesamtjahr, Quartal (Q1–Q4) oder Einzelmonat',
+        'Monatschart in Bilanz & GuV — Einnahmen, Ausgaben und kumulierter Saldo',
+        'Menüpunkt „Bilanz & GuV" in der Navigation',
+      ],
+      improved: [
+        'Kostentabelle – Fußzeile zeigt Einnahmen / Ausgaben / Saldo statt nur Gesamtsumme',
+        'Kostentabelle – farbige Typ-Chips (grün = Einnahme, rot = Ausgabe); sortierbar & filterbar',
+        'Filterleiste Kosten – neuer Typ-Filter (Alle / Einnahme / Ausgabe)',
+        'PDF-Export Liste – Typ-Spalte und Einnahmen/Ausgaben/Saldo-Fußzeile',
+        'PDF-Einzelbeleg – Typ-Feld in der Detailtabelle',
+      ],
+    },
+    {
+      version: '1.0.0',
+      date: '2025',
+      isLatest: false,
+      added: [
+        'Dashboard, Personen, Kostenstellen, Kosten, Stunden',
+        'Analytics mit Jahresvergleich, Trends und Top-10',
+        'PDF-Export (Liste & Einzelbeleg mit Bildanhängen)',
+        'Login-System mit JWT-Authentifizierung',
+        'Kryptografische Integritätsprüfung (SHA-256-Hash-Kette)',
+        'Benutzerverwaltung, Passwort ändern',
+        'Datensicherung (Backup erstellen & herunterladen)',
+        'PWA (installierbar), Raspberry Pi Autostart',
+      ],
+      improved: [],
+    },
+  ];
+
+  return (
+    <Box>
+      {releases.map((r) => (
+        <Box key={r.version} sx={{ mb: 4 }}>
+          <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
+            <Typography variant="h6" fontWeight={700} color="primary.main">
+              v{r.version}
+            </Typography>
+            {r.isLatest && <Chip label="Aktuell" color="success" size="small" />}
+            <Typography variant="caption" color="text.secondary">{r.date}</Typography>
+          </Box>
+
+          {r.added.length > 0 && (
+            <>
+              <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mb: 0.5 }}>
+                Neu
+              </Typography>
+              <List dense disablePadding sx={{ mb: 1.5 }}>
+                {r.added.map((item) => (
+                  <ListItem key={item} disablePadding sx={{ pl: 1 }}>
+                    <ListItemIcon sx={{ minWidth: 28 }}>
+                      <CheckCircleOutlineIcon fontSize="small" color="success" />
+                    </ListItemIcon>
+                    <ListItemText primary={item} primaryTypographyProps={{ variant: 'body2' }} />
+                  </ListItem>
+                ))}
+              </List>
+            </>
+          )}
+
+          {r.improved.length > 0 && (
+            <>
+              <Typography variant="body2" fontWeight={600} color="primary.dark" sx={{ mb: 0.5 }}>
+                Verbessert
+              </Typography>
+              <List dense disablePadding>
+                {r.improved.map((item) => (
+                  <ListItem key={item} disablePadding sx={{ pl: 1 }}>
+                    <ListItemIcon sx={{ minWidth: 28 }}>
+                      <CheckCircleOutlineIcon fontSize="small" color="primary" />
+                    </ListItemIcon>
+                    <ListItemText primary={item} primaryTypographyProps={{ variant: 'body2' }} />
+                  </ListItem>
+                ))}
+              </List>
+            </>
+          )}
+
+          {r.version !== '1.0.0' && <Divider sx={{ mt: 2 }} />}
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
 // ---------- Haupt-Komponente ----------
 export default function About() {
   const [tab, setTab] = useState(0);
@@ -343,12 +444,16 @@ export default function About() {
     { label: 'Frontend', icon: <WebIcon fontSize="small" /> },
     { label: 'Backend', icon: <StorageIcon fontSize="small" /> },
     { label: 'Sicherheit', icon: <CheckCircleOutlineIcon fontSize="small" /> },
+    { label: 'Changelog', icon: <NewReleasesIcon fontSize="small" /> },
   ];
 
   return (
     <Box>
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>Über das Buchungssystem</Typography>
+        <Box display="flex" alignItems="center" gap={1.5}>
+          <Typography variant="h5" fontWeight={700}>Über das Buchungssystem</Typography>
+          <Chip label={`v${APP_VERSION}`} color="primary" size="small" />
+        </Box>
         <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
           {['React 19', 'Vite 8', 'Material UI 7', 'Express 4', 'JWT', 'SHA-256', 'PWA'].map((tag) => (
             <Chip key={tag} label={tag} size="small" variant="outlined" color="primary" />
@@ -374,6 +479,7 @@ export default function About() {
           {tab === 1 && <FrontendTab />}
           {tab === 2 && <BackendTab />}
           {tab === 3 && <SecurityTab />}
+          {tab === 4 && <ChangelogTab />}
         </Box>
       </Paper>
     </Box>

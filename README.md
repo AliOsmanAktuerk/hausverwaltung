@@ -1,6 +1,8 @@
-# Buchungssystem
+# Buchungssystem · v1.1.0
 
-Eine moderne Webanwendung zur Verwaltung von Personen, Kostenstellen und Ausgaben – optimiert für den Einsatz auf einem Raspberry Pi im Heimnetzwerk.
+Eine moderne Webanwendung zur Verwaltung von Personen, Kostenstellen, Einnahmen und Ausgaben – optimiert für den Einsatz auf einem Raspberry Pi im Heimnetzwerk.
+
+> Alle Änderungen zwischen Versionen: **[CHANGELOG.md](CHANGELOG.md)**
 
 ---
 
@@ -10,7 +12,7 @@ Eine moderne Webanwendung zur Verwaltung von Personen, Kostenstellen und Ausgabe
 - **Dashboard** – KPI-Karten, interaktive Charts (Monatsverlauf, Personen, Kostenstellen, Ranking)
 - **Personen** – Verwaltung mit individueller Farbzuweisung
 - **Kostenstellen** – Kategorien mit Beschreibung und Zuordnung
-- **Kosten** – Buchungen mit Betrag, Datum, Zahlungsart, Notiz und Dateianhängen
+- **Kosten** – Buchungen mit Betrag, Datum, Typ (Einnahme/Ausgabe), Zahlungsart, Notiz und Dateianhängen
 - **Datei-Upload** – Drag & Drop, Foto-Vorschau mit Lightbox-Galerie
 
 ### Sicherheit & Authentifizierung
@@ -19,8 +21,9 @@ Eine moderne Webanwendung zur Verwaltung von Personen, Kostenstellen und Ausgabe
 - **Kryptografische Integrität** – SHA-256-Hash-Kette pro Eintrag (ähnlich Blockchain); Manipulation wird zuverlässig erkannt
 
 ### Auswertung & Export
+- **Bilanz & GuV** – automatische Gewinn- und Verlustrechnung + vereinfachte Bilanz auf Basis des Buchungsstands; filterbar nach Jahr, Quartal oder Monat
 - **Analytics** – Jahresvergleich, Personen-Verlauf, Kostenstellen-Entwicklung, Zahlungsart-Analyse, Wochentag-Verteilung, Top-10-Tabelle mit Jahresfilter
-- **PDF-Export** – Gesamtliste (gefiltert) als PDF mit eingebetteten Bildbelegen
+- **PDF-Export** – Gesamtliste (gefiltert) als PDF mit Typ-Spalte und Einnahmen/Ausgaben/Saldo-Fußzeile
 - **Einzel-Beleg PDF** – pro Buchung ein vollständiger Beleg mit allen Bildanhängen, Detail-Tabelle und Integritäts-Hash
 
 ### Technik
@@ -48,13 +51,15 @@ buchungssystem/
 ├── hausverwaltung-app/         # React Frontend (Vite + MUI + Tailwind)
 │   ├── src/
 │   │   ├── pages/
-│   │   │   ├── Dashboard.jsx   # KPIs & Charts
-│   │   │   ├── Analytics.jsx   # Detaillierte Auswertungen
-│   │   │   ├── Expenses.jsx    # Kostenverwaltung + PDF-Export
+│   │   │   ├── Dashboard.jsx          # KPIs & Charts
+│   │   │   ├── Analytics.jsx          # Detaillierte Auswertungen
+│   │   │   ├── Expenses.jsx           # Kostenverwaltung + PDF-Export
+│   │   │   ├── Finanzauswertung.jsx   # Bilanz & GuV (neu in v1.1.0)
+│   │   │   ├── Hours.jsx              # Stundenaufwandsliste
 │   │   │   ├── Persons.jsx
 │   │   │   ├── Products.jsx
 │   │   │   ├── Login.jsx
-│   │   │   └── Settings.jsx    # Passwort, Benutzer, Integrität, App-Info
+│   │   │   └── Settings.jsx           # Passwort, Benutzer, Integrität, App-Info
 │   │   ├── context/
 │   │   │   └── AuthContext.jsx # JWT Auth State
 │   │   ├── components/

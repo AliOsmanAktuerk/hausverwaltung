@@ -29,7 +29,7 @@ const paymentColors = { Bar: 'default', Karte: 'primary', Überweisung: 'success
 
 const emptyForm = {
   personId: '', productId: '', amount: '', paymentMethod: 'Bar',
-  date: new Date().toISOString().split('T')[0], note: '', attachments: [],
+  date: new Date().toISOString().split('T')[0], note: '', attachments: [], type: 'Ausgabe',
 };
 
 function isImage(mimetype) { return mimetype?.startsWith('image/'); }
@@ -200,7 +200,7 @@ function ExpenseFormDialog({ open, expense, persons, products, onClose, onSave }
     setFormData(expense ? {
       personId: expense.personId, productId: expense.productId, amount: expense.amount,
       paymentMethod: expense.paymentMethod, date: expense.date, note: expense.note,
-      attachments: expense.attachments || [],
+      attachments: expense.attachments || [], type: expense.type || 'Ausgabe',
     } : emptyForm);
   }, [expense, open]);
 
@@ -252,6 +252,14 @@ function ExpenseFormDialog({ open, expense, persons, products, onClose, onSave }
                 required fullWidth size="small" InputLabelProps={{ shrink: true }}
               />
             </div>
+
+            <FormControl fullWidth size="small" required>
+              <InputLabel>Typ</InputLabel>
+              <Select value={formData.type || 'Ausgabe'} onChange={update('type')} label="Typ">
+                <MenuItem value="Ausgabe">Ausgabe</MenuItem>
+                <MenuItem value="Einnahme">Einnahme</MenuItem>
+              </Select>
+            </FormControl>
 
             <FormControl fullWidth size="small">
               <InputLabel>Zahlungsart</InputLabel>
@@ -318,9 +326,10 @@ function Expenses() {
   const [filterPayment, setFilterPayment] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterType, setFilterType] = useState('');
   const [sortBy, setSortBy] = useState('date');
   const [sortDir, setSortDir] = useState('desc');
-  const [colFilters, setColFilters] = useState({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', payment: '', note: '' });
+  const [colFilters, setColFilters] = useState({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', type: '', payment: '', note: '' });
   const [showTimestamps, setShowTimestamps] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfProgress, setPdfProgress] = useState('');
@@ -345,6 +354,7 @@ function Expenses() {
       if (filterPerson)  filterParts.push(`Person: ${persons.find(p => String(p.id) === String(filterPerson))?.name}`);
       if (filterProduct) filterParts.push(`Kostenstelle: ${products.find(p => String(p.id) === String(filterProduct))?.name}`);
       if (filterPayment) filterParts.push(`Zahlung: ${filterPayment}`);
+      if (filterType)   filterParts.push(`Typ: ${filterType}`);
       if (filterDateFrom) filterParts.push(`Von: ${fmtDate(filterDateFrom)}`);
       if (filterDateTo)   filterParts.push(`Bis: ${fmtDate(filterDateTo)}`);
 
@@ -391,18 +401,21 @@ function Expenses() {
         productName.toLowerCase().includes(q) ||
         exp.note?.toLowerCase().includes(q) ||
         String(exp.amount).includes(q);
+      const expType = exp.type || 'Ausgabe';
       return matchesSearch &&
         (!filterPerson || String(exp.personId) === String(filterPerson)) &&
         (!filterProduct || String(exp.productId) === String(filterProduct)) &&
         (!filterPayment || exp.paymentMethod === filterPayment) &&
         (!filterDateFrom || exp.date >= filterDateFrom) &&
         (!filterDateTo || exp.date <= filterDateTo) &&
+        (!filterType || expType === filterType) &&
         (!cf.date || fmtDate(exp.date).includes(cf.date)) &&
         (!cf.createdAt || fmtDate(exp.createdAt?.split('T')[0]).includes(cf.createdAt)) &&
         (!cf.updatedAt || fmtDate(exp.updatedAt?.split('T')[0]).includes(cf.updatedAt)) &&
         (!cf.person || personName.toLowerCase().includes(cf.person.toLowerCase())) &&
         (!cf.product || productName.toLowerCase().includes(cf.product.toLowerCase())) &&
         (!cf.amount || String(exp.amount).includes(cf.amount)) &&
+        (!cf.type || expType.toLowerCase().includes(cf.type.toLowerCase())) &&
         (!cf.payment || exp.paymentMethod?.toLowerCase().includes(cf.payment.toLowerCase())) &&
         (!cf.note || exp.note?.toLowerCase().includes(cf.note.toLowerCase()));
     });
@@ -415,6 +428,7 @@ function Expenses() {
       else if (sortBy === 'person')    { aVal = getPersonName(a.personId);  bVal = getPersonName(b.personId); }
       else if (sortBy === 'product')   { aVal = getProductName(a.productId); bVal = getProductName(b.productId); }
       else if (sortBy === 'amount')    { aVal = parseFloat(a.amount || 0);   bVal = parseFloat(b.amount || 0); }
+      else if (sortBy === 'type')       { aVal = (a.type || 'Ausgabe');        bVal = (b.type || 'Ausgabe'); }
       else if (sortBy === 'payment')   { aVal = a.paymentMethod ?? '';        bVal = b.paymentMethod ?? ''; }
       else { aVal = a.date ?? ''; bVal = b.date ?? ''; }
       if (typeof aVal === 'number') return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
@@ -424,19 +438,23 @@ function Expenses() {
     });
 
     return result;
-  }, [expenses, search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo, colFilters, sortBy, sortDir, persons, products]);
+  }, [expenses, search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo, filterType, colFilters, sortBy, sortDir, persons, products]);
 
   // Bei Filteränderung zurück auf Seite 1
-  useEffect(() => { setPage(0); }, [search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo]);
+  useEffect(() => { setPage(0); }, [search, filterPerson, filterProduct, filterPayment, filterDateFrom, filterDateTo, filterType]);
 
   const hasColFilter = Object.values(colFilters).some(Boolean);
-  const hasFilter = search || filterPerson || filterProduct || filterPayment || filterDateFrom || filterDateTo || hasColFilter;
+  const hasFilter = search || filterPerson || filterProduct || filterPayment || filterDateFrom || filterDateTo || filterType || hasColFilter;
   const resetFilters = () => {
     setPage(0);
     setSearch(''); setFilterPerson(''); setFilterProduct('');
-    setFilterPayment(''); setFilterDateFrom(''); setFilterDateTo('');
-    setColFilters({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', payment: '', note: '' });
+    setFilterPayment(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterType('');
+    setColFilters({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', type: '', payment: '', note: '' });
   };
+
+  const totalEinnahmen = filtered.reduce((sum, e) => (e.type || 'Ausgabe') === 'Einnahme' ? sum + parseFloat(e.amount || 0) : sum, 0);
+  const totalAusgaben = filtered.reduce((sum, e) => (e.type || 'Ausgabe') === 'Ausgabe' ? sum + parseFloat(e.amount || 0) : sum, 0);
+  const saldo = totalEinnahmen - totalAusgaben;
 
   const openCreate = () => { setEditExpense(null); setFormOpen(true); };
   const openEdit = (expense) => { setEditExpense(expense); setFormOpen(true); };
@@ -532,6 +550,14 @@ function Expenses() {
               </FormControl>
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+              <FormControl size="small" sx={{ minWidth: 130 }}>
+                <InputLabel>Typ</InputLabel>
+                <Select value={filterType} onChange={(e) => setFilterType(e.target.value)} label="Typ">
+                  <MenuItem value="">Alle</MenuItem>
+                  <MenuItem value="Ausgabe">Ausgabe</MenuItem>
+                  <MenuItem value="Einnahme">Einnahme</MenuItem>
+                </Select>
+              </FormControl>
               <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel>Zahlungsart</InputLabel>
                 <Select value={filterPayment} onChange={(e) => setFilterPayment(e.target.value)} label="Zahlungsart">
@@ -568,6 +594,7 @@ function Expenses() {
                     { key: 'person',    label: 'Person' },
                     { key: 'product',   label: 'Produkt' },
                     { key: 'amount',    label: 'Betrag' },
+                    { key: 'type',      label: 'Typ' },
                     { key: 'payment',   label: 'Zahlung' },
                   ].map(({ key, label }) => (
                     <TableCell key={key}>
@@ -596,6 +623,7 @@ function Expenses() {
                     { key: 'person',    placeholder: 'Name…' },
                     { key: 'product',   placeholder: 'Produkt…' },
                     { key: 'amount',    placeholder: 'Betrag…' },
+                    { key: 'type',      placeholder: 'Typ…' },
                     { key: 'payment',   placeholder: 'Zahlung…' },
                     { key: 'note',      placeholder: 'Notiz…' },
                   ].map(({ key, placeholder }) => (
@@ -631,7 +659,7 @@ function Expenses() {
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={showTimestamps ? 11 : 9} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={showTimestamps ? 12 : 10} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
                       Keine Daten gefunden
                     </TableCell>
                   </TableRow>
@@ -649,6 +677,13 @@ function Expenses() {
                       <TableCell>{getPersonName(expense.personId)}</TableCell>
                       <TableCell>{getProductName(expense.productId)}</TableCell>
                       <TableCell sx={{ fontWeight: 'medium' }}>{fmtEuro(expense.amount)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={expense.type || 'Ausgabe'}
+                          color={(expense.type || 'Ausgabe') === 'Einnahme' ? 'success' : 'error'}
+                          size="small"
+                        />
+                      </TableCell>
                       <TableCell>
                         <Chip label={expense.paymentMethod} color={paymentColors[expense.paymentMethod] || 'default'} size="small" />
                       </TableCell>
@@ -707,15 +742,32 @@ function Expenses() {
               </TableBody>
 
               <TableFooter>
-                <TableRow sx={{ backgroundColor: 'grey.100', '& td': { borderTop: '2px solid', borderTopColor: 'grey.300' } }}>
+                <TableRow sx={{ '& td': { borderTop: '2px solid', borderTopColor: 'grey.300', backgroundColor: '#f0fdf4', py: 0.75 } }}>
+                  <TableCell colSpan={showTimestamps ? 6 : 4} sx={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'success.dark' }}>
+                    {hasFilter ? 'Einnahmen (gefiltert)' : 'Einnahmen'}
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'success.main' }}>
+                    {fmtEuro(totalEinnahmen)}
+                  </TableCell>
+                  <TableCell colSpan={5} />
+                </TableRow>
+                <TableRow sx={{ '& td': { backgroundColor: '#fff5f5', py: 0.75 } }}>
+                  <TableCell colSpan={showTimestamps ? 6 : 4} sx={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'error.dark' }}>
+                    {hasFilter ? 'Ausgaben (gefiltert)' : 'Ausgaben'}
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'error.main' }}>
+                    {fmtEuro(totalAusgaben)}
+                  </TableCell>
+                  <TableCell colSpan={5} />
+                </TableRow>
+                <TableRow sx={{ '& td': { backgroundColor: 'grey.100', py: 0.75 } }}>
                   <TableCell colSpan={showTimestamps ? 6 : 4} sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>
-                    {hasFilter ? `Summe (gefiltert, ${filtered.length} Einträge)` : `Gesamtsumme (${filtered.length} Einträge)`}
+                    {hasFilter ? `Saldo (gefiltert, ${filtered.length} Einträge)` : `Saldo (${filtered.length} Einträge)`}
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.95rem', color: 'primary.main' }}>
-                    {fmtEuro(filtered.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0))}
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.95rem', color: saldo >= 0 ? 'success.main' : 'error.main' }}>
+                    {fmtEuro(saldo)}
                   </TableCell>
-                  <TableCell colSpan={4} />
-
+                  <TableCell colSpan={5} />
                 </TableRow>
               </TableFooter>
             </Table>
