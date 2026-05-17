@@ -77,9 +77,11 @@ function requireAuth(req, res, next) {
   }
 }
 
-// Alle /api/*-Routen schützen außer /api/auth/*
+// Alle /api/*-Routen schützen außer /api/auth/* und GET /api/uploads/*
+// (Bilder können im Browser keinen Authorization-Header mitsenden)
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth')) return next();
+  if (req.method === 'GET' && req.path.startsWith('/uploads/')) return next();
   requireAuth(req, res, next);
 });
 
