@@ -5,6 +5,36 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/).
 
 ---
 
+## [1.2.0] – 2026-05-17
+
+### Neu
+
+- **Versioniertes Migrationsskript** (`backend/migrate.js`) — Schema-Änderungen an den
+  JSON-Datendateien können jetzt kontrolliert und nachvollziehbar angewendet werden.
+  Jede Migration läuft nur einmal (Protokoll in `data/migrations.json`). Enthaltene
+  Migrationen: Timestamps ergänzen, Typ-Felder normalisieren, leere Kategorien befüllen.
+  Aufruf: `npm run migrate` / `npm run migrate:list` / `npm run migrate:dry`
+
+- **Snapshot-basierte Datensicherung** — Anstelle einer einzelnen `backup.json`, die bei
+  jeder Sicherung überschrieben wurde, wird jetzt ein zeitgestempelter Snapshot unter
+  `data/snapshots/` angelegt. Maximal 30 Snapshots werden behalten (automatische Rotation).
+
+- **Automatischer Snapshot beim Serverstart** — Beim Start von `server.js` wird
+  automatisch ein Snapshot aller Entitäten erstellt, ohne manuellen Aufruf.
+
+### Verbessert
+
+- **Datensicherung vollständig** — `hours`-Daten wurden bisher nicht gesichert;
+  alle vier Entitäten (`persons`, `products`, `expenses`, `hours`) sind jetzt enthalten.
+
+- **start.sh bereinigt** — Fehleranfälliger `node -e "require(...)"` Backup-Block
+  entfernt (funktionierte nicht im ESM-Projekt); Sicherung übernimmt jetzt `server.js`.
+
+- **`.gitignore` erweitert** — `hours.json`, `snapshots/`, `migration-backups/` und
+  `migrations.json` korrekt ausgeschlossen.
+
+---
+
 ## [1.1.0] – 2026-05-17
 
 ### Neu
