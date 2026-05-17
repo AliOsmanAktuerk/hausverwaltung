@@ -9,8 +9,7 @@ import WebIcon from '@mui/icons-material/Web';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import { useState } from 'react';
-
-const APP_VERSION = '1.1.0';
+import { version as APP_VERSION } from '../../package.json';
 
 function SectionTitle({ children }) {
   return (
