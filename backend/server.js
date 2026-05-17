@@ -266,50 +266,67 @@ app.delete('/api/uploads/:filename', (req, res) => {
 });
 
 // ── Sicherung (Backup) ────────────────────────────────────────────────────────
-const BACKUP_FILE = path.join(DATA_DIR, 'backup.json');
+const SNAPSHOTS_DIR = path.join(DATA_DIR, 'snapshots');
+fs.mkdirSync(SNAPSHOTS_DIR, { recursive: true });
 
-function readBackup() {
-  if (!fs.existsSync(BACKUP_FILE)) return null;
+// Letzten Snapshot laden (für API-Info)
+function readLatestSnapshot() {
+  const files = fs.readdirSync(SNAPSHOTS_DIR)
+    .filter(f => f.endsWith('.json'))
+    .sort();
+  if (files.length === 0) return null;
   try {
-    return JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
+    return JSON.parse(fs.readFileSync(path.join(SNAPSHOTS_DIR, files.at(-1)), 'utf-8'));
   } catch {
     return null;
   }
 }
 
-// Backup erstellen oder vorhandene Datei erweitern
+function listSnapshots() {
+  return fs.readdirSync(SNAPSHOTS_DIR)
+    .filter(f => f.endsWith('.json'))
+    .sort()
+    .map(f => {
+      try {
+        const snap = JSON.parse(fs.readFileSync(path.join(SNAPSHOTS_DIR, f), 'utf-8'));
+        return { filename: f, timestamp: snap.timestamp, counts: snap.counts };
+      } catch {
+        return { filename: f, timestamp: null, counts: {} };
+      }
+    });
+}
+
+function createSnapshot() {
+  const now = new Date().toISOString();
+  const timestamp = now.replace(/[:.]/g, '-');
+  const snapshot = { version: 2, timestamp: now, counts: {}, data: {} };
+  for (const entity of ENTITIES) {
+    snapshot.data[entity] = readData(entity);
+    snapshot.counts[entity] = snapshot.data[entity].length;
+  }
+  const file = path.join(SNAPSHOTS_DIR, `snapshot-${timestamp}.json`);
+  fs.writeFileSync(file, JSON.stringify(snapshot, null, 2), 'utf-8');
+
+  // Nur die letzten 30 Snapshots behalten
+  const all = fs.readdirSync(SNAPSHOTS_DIR).filter(f => f.endsWith('.json')).sort();
+  if (all.length > 30) {
+    for (const old of all.slice(0, all.length - 30)) {
+      fs.unlinkSync(path.join(SNAPSHOTS_DIR, old));
+    }
+  }
+  return { file: path.basename(file), timestamp: now, counts: snapshot.counts };
+}
+
+// Snapshot erstellen
 app.post('/api/backup', (_req, res) => {
   try {
-    const now = new Date().toISOString();
-    const currentData = {};
-    const counts = {};
-    for (const entity of ENTITIES) {
-      currentData[entity] = readData(entity);
-      counts[entity] = currentData[entity].length;
-    }
-
-    const logEntry = { timestamp: now, counts };
-    const existing = readBackup();
-
-    let backup;
-    if (existing) {
-      backup = {
-        ...existing,
-        lastUpdated: now,
-        log: [...(existing.log ?? []), logEntry],
-        data: { ...(existing.data ?? {}), ...currentData },
-      };
-    } else {
-      backup = { version: 1, created: now, lastUpdated: now, log: [logEntry], data: currentData };
-    }
-
-    fs.writeFileSync(BACKUP_FILE, JSON.stringify(backup, null, 2), 'utf-8');
-
-    res.status(existing ? 200 : 201).json({
-      message: existing ? 'Sicherung erweitert' : 'Sicherung erstellt',
-      timestamp: now,
-      counts,
-      totalBackups: backup.log.length,
+    const result = createSnapshot();
+    const snapshots = listSnapshots();
+    res.status(201).json({
+      message: 'Sicherung erstellt',
+      timestamp: result.timestamp,
+      counts: result.counts,
+      totalBackups: snapshots.length,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -318,23 +335,30 @@ app.post('/api/backup', (_req, res) => {
 
 // Backup-Info abrufen
 app.get('/api/backup', (_req, res) => {
-  const backup = readBackup();
-  if (!backup) return res.json({ exists: false });
+  const snapshots = listSnapshots();
+  if (snapshots.length === 0) return res.json({ exists: false });
+  const latest = snapshots.at(-1);
   res.json({
     exists: true,
-    created: backup.created,
-    lastUpdated: backup.lastUpdated,
-    totalBackups: backup.log?.length ?? 0,
-    log: backup.log ?? [],
-    counts: backup.log?.at(-1)?.counts ?? {},
+    created: snapshots[0].timestamp,
+    lastUpdated: latest.timestamp,
+    totalBackups: snapshots.length,
+    log: snapshots.map(s => ({ timestamp: s.timestamp, counts: s.counts })),
+    counts: latest.counts,
   });
 });
 
-// Backup als Datei herunterladen
+// Backup als Datei herunterladen (neuester Snapshot)
 app.get('/api/backup/download', (_req, res) => {
-  if (!fs.existsSync(BACKUP_FILE)) return res.status(404).json({ error: 'Keine Sicherung vorhanden' });
-  res.download(BACKUP_FILE, `buchungssystem-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  const files = fs.readdirSync(SNAPSHOTS_DIR).filter(f => f.endsWith('.json')).sort();
+  if (files.length === 0) return res.status(404).json({ error: 'Keine Sicherung vorhanden' });
+  const latest = path.join(SNAPSHOTS_DIR, files.at(-1));
+  res.download(latest, `buchungssystem-backup-${new Date().toISOString().slice(0, 10)}.json`);
 });
+
+// Automatischer Snapshot beim Start
+createSnapshot();
+console.log('Startsicherung erstellt.');
 
 // ── System-Status ─────────────────────────────────────────────────────────────
 app.get('/api/system/status', (_req, res) => {

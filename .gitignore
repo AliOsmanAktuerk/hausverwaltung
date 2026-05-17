@@ -11,7 +11,11 @@ backend/data/uploads/
 backend/data/persons.json
 backend/data/products.json
 backend/data/expenses.json
+backend/data/hours.json
 backend/data/backup.json
+backend/data/snapshots/
+backend/data/migration-backups/
+backend/data/migrations.json
 
 # Sicherheitskritisch – niemals ins Repo!
 backend/data/.jwt_secret

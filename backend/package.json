@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "migrate": "node migrate.js",
+    "migrate:list": "node migrate.js --list",
+    "migrate:dry": "node migrate.js --dry"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

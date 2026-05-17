@@ -44,34 +44,7 @@ echo "  http://localhost:${PORT}"
 echo "============================================"
 echo ""
 
-# Backup vor dem Start erstellen
-echo "Sicherung wird erstellt..."
-node -e "
-const fs = require('fs');
-const path = require('path');
-const dataDir = path.join('${SCRIPT_DIR}', 'backend', 'data');
-const backupFile = path.join(dataDir, 'backup.json');
-const entities = ['persons', 'products', 'expenses'];
-const now = new Date().toISOString();
-const currentData = {};
-const counts = {};
-for (const entity of entities) {
-  const file = path.join(dataDir, entity + '.json');
-  currentData[entity] = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : [];
-  counts[entity] = currentData[entity].length;
-}
-const logEntry = { timestamp: now, counts };
-let backup;
-if (fs.existsSync(backupFile)) {
-  const existing = JSON.parse(fs.readFileSync(backupFile, 'utf-8'));
-  backup = { ...existing, lastUpdated: now, log: [...(existing.log || []), logEntry], data: { ...(existing.data || {}), ...currentData } };
-  console.log('Sicherung erweitert (Eintrag ' + backup.log.length + ')');
-} else {
-  backup = { version: 1, created: now, lastUpdated: now, log: [logEntry], data: currentData };
-  console.log('Neue Sicherung angelegt');
-}
-fs.writeFileSync(backupFile, JSON.stringify(backup, null, 2), 'utf-8');
-" || echo "Warnung: Sicherung fehlgeschlagen – Server wird trotzdem gestartet."
+# Backup vor dem Start erstellen (server.js übernimmt das automatisch beim Start)
 
 # Server starten
 node backend/server.js
