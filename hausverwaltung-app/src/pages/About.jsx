@@ -10,6 +10,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import { useState } from 'react';
 import { version as APP_VERSION } from '../../package.json';
+import changelogRaw from '../../../CHANGELOG.md?raw';
 
 function SectionTitle({ children }) {
   return (
@@ -339,49 +340,42 @@ http://raspberrypi.local:8090`}</CodeBlock>
   );
 }
 
+// ---------- CHANGELOG.md Parser ----------
+function parseChangelog(raw) {
+  const releases = [];
+  const sections = raw.split(/^## /m).filter(s => s.trim().startsWith('['));
+  for (const section of sections) {
+    const lines = section.split('\n');
+    const match = lines[0].match(/\[([^\]]+)\]\s*[–-]\s*(.+)/);
+    if (!match) continue;
+    const added = [], improved = [], fixed = [];
+    let current = null;
+    for (const line of lines.slice(1)) {
+      if (/^### Neu/.test(line))        { current = added;    continue; }
+      if (/^### Verbessert/.test(line)) { current = improved; continue; }
+      if (/^### Behoben/.test(line))    { current = fixed;    continue; }
+      if (/^### /.test(line))           { current = null;     continue; }
+      if (line.startsWith('- ') && current) current.push(line.slice(2).trim());
+    }
+    releases.push({ version: match[1], date: match[2].trim(), added, improved, fixed });
+  }
+  if (releases.length > 0) releases[0].isLatest = true;
+  return releases;
+}
+
 // ---------- Tab 5: Changelog ----------
 function ChangelogTab() {
-  const releases = [
-    {
-      version: '1.1.0',
-      date: '2026-05-17',
-      isLatest: true,
-      added: [
-        'Typ-Feld „Einnahme / Ausgabe" — jede Buchung wird klassifiziert (Pflichtfeld, Standard: Ausgabe)',
-        'Seite „Bilanz & GuV" (/finanzauswertung) — GuV-Rechnung und vereinfachte Bilanz automatisch aus Buchungsstand',
-        'Periodenfilter für Bilanz & GuV — Gesamtjahr, Quartal (Q1–Q4) oder Einzelmonat',
-        'Monatschart in Bilanz & GuV — Einnahmen, Ausgaben und kumulierter Saldo',
-        'Menüpunkt „Bilanz & GuV" in der Navigation',
-      ],
-      improved: [
-        'Kostentabelle – Fußzeile zeigt Einnahmen / Ausgaben / Saldo statt nur Gesamtsumme',
-        'Kostentabelle – farbige Typ-Chips (grün = Einnahme, rot = Ausgabe); sortierbar & filterbar',
-        'Filterleiste Kosten – neuer Typ-Filter (Alle / Einnahme / Ausgabe)',
-        'PDF-Export Liste – Typ-Spalte und Einnahmen/Ausgaben/Saldo-Fußzeile',
-        'PDF-Einzelbeleg – Typ-Feld in der Detailtabelle',
-      ],
-    },
-    {
-      version: '1.0.0',
-      date: '2025',
-      isLatest: false,
-      added: [
-        'Dashboard, Personen, Kostenstellen, Kosten, Stunden',
-        'Analytics mit Jahresvergleich, Trends und Top-10',
-        'PDF-Export (Liste & Einzelbeleg mit Bildanhängen)',
-        'Login-System mit JWT-Authentifizierung',
-        'Kryptografische Integritätsprüfung (SHA-256-Hash-Kette)',
-        'Benutzerverwaltung, Passwort ändern',
-        'Datensicherung (Backup erstellen & herunterladen)',
-        'PWA (installierbar), Raspberry Pi Autostart',
-      ],
-      improved: [],
-    },
+  const releases = parseChangelog(changelogRaw);
+
+  const sections = [
+    { key: 'added',    label: 'Neu',        color: 'success' },
+    { key: 'improved', label: 'Verbessert', color: 'primary' },
+    { key: 'fixed',    label: 'Behoben',    color: 'warning' },
   ];
 
   return (
     <Box>
-      {releases.map((r) => (
+      {releases.map((r, i) => (
         <Box key={r.version} sx={{ mb: 4 }}>
           <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
             <Typography variant="h6" fontWeight={700} color="primary.main">
@@ -391,43 +385,27 @@ function ChangelogTab() {
             <Typography variant="caption" color="text.secondary">{r.date}</Typography>
           </Box>
 
-          {r.added.length > 0 && (
-            <>
-              <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mb: 0.5 }}>
-                Neu
-              </Typography>
-              <List dense disablePadding sx={{ mb: 1.5 }}>
-                {r.added.map((item) => (
-                  <ListItem key={item} disablePadding sx={{ pl: 1 }}>
-                    <ListItemIcon sx={{ minWidth: 28 }}>
-                      <CheckCircleOutlineIcon fontSize="small" color="success" />
-                    </ListItemIcon>
-                    <ListItemText primary={item} primaryTypographyProps={{ variant: 'body2' }} />
-                  </ListItem>
-                ))}
-              </List>
-            </>
+          {sections.map(({ key, label, color }) =>
+            r[key]?.length > 0 && (
+              <Box key={key} sx={{ mb: 1.5 }}>
+                <Typography variant="body2" fontWeight={600} color={`${color}.dark`} sx={{ mb: 0.5 }}>
+                  {label}
+                </Typography>
+                <List dense disablePadding>
+                  {r[key].map((item) => (
+                    <ListItem key={item} disablePadding sx={{ pl: 1 }}>
+                      <ListItemIcon sx={{ minWidth: 28 }}>
+                        <CheckCircleOutlineIcon fontSize="small" color={color} />
+                      </ListItemIcon>
+                      <ListItemText primary={item} primaryTypographyProps={{ variant: 'body2' }} />
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            )
           )}
 
-          {r.improved.length > 0 && (
-            <>
-              <Typography variant="body2" fontWeight={600} color="primary.dark" sx={{ mb: 0.5 }}>
-                Verbessert
-              </Typography>
-              <List dense disablePadding>
-                {r.improved.map((item) => (
-                  <ListItem key={item} disablePadding sx={{ pl: 1 }}>
-                    <ListItemIcon sx={{ minWidth: 28 }}>
-                      <CheckCircleOutlineIcon fontSize="small" color="primary" />
-                    </ListItemIcon>
-                    <ListItemText primary={item} primaryTypographyProps={{ variant: 'body2' }} />
-                  </ListItem>
-                ))}
-              </List>
-            </>
-          )}
-
-          {r.version !== '1.0.0' && <Divider sx={{ mt: 2 }} />}
+          {i < releases.length - 1 && <Divider sx={{ mt: 2 }} />}
         </Box>
       ))}
     </Box>

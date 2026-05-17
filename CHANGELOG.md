@@ -5,6 +5,26 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/).
 
 ---
 
+## [1.3.0] – 2026-05-17
+
+### Behoben
+
+- **Anhänge nach Login nicht ladbar** — Bilder und PDFs wurden in der Kostenliste
+  mit „Nicht authentifiziert" abgewiesen, weil `<img>`-Tags keinen Authorization-Header
+  mitsenden können. `GET /api/uploads/*` ist jetzt öffentlich; Upload und Löschen
+  bleiben weiterhin geschützt.
+
+### Verbessert
+
+- **Changelog im Frontend direkt aus `CHANGELOG.md`** — Der Changelog-Tab liest
+  die Datei jetzt zur Build-Zeit ein (Vite `?raw`-Import) und parst sie automatisch.
+  Releases müssen nicht mehr doppelt gepflegt werden.
+
+- **App-Version aus `package.json`** — Die Versionsnummer wird beim Build automatisch
+  aus `hausverwaltung-app/package.json` gelesen und im Header angezeigt.
+
+---
+
 ## [1.2.0] – 2026-05-17
 
 ### Neu

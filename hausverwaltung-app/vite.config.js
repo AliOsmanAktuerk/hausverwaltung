@@ -67,5 +67,8 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:8090',
     },
+    fs: {
+      allow: ['..'], // CHANGELOG.md liegt im übergeordneten Verzeichnis
+    },
   },
 })
