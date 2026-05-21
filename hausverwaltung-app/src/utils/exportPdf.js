@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { fmtEuro, fmtDate } from './format';
+import { fmtEuro, fmtAmount, fmtDate } from './format';
 
 const BRAND_COLOR  = [99, 102, 241];   // Indigo #6366f1
 const HEADER_BG    = [245, 245, 250];
@@ -118,7 +118,7 @@ function drawTitleBlock(doc, { totalCount, totalAmount, filters, generatedAt }) 
 }
 
 // ── Einzel-Eintrag PDF ────────────────────────────────────────────────────────
-export async function exportSingleExpensePdf({ expense, persons, products }) {
+export async function exportSingleExpensePdf({ expense, persons, products, expenses }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const getName = (arr, id) => arr.find(x => String(x.id) === String(id))?.name ?? '—';
 
@@ -148,14 +148,24 @@ export async function exportSingleExpensePdf({ expense, persons, products }) {
   y += 8;
 
   // ── Detail-Tabelle ────────────────────────────────────────────────────────
+  const predecessorRow = (() => {
+    if (!expense.predecessorId) return null;
+    const pred = (expenses || []).find(e => String(e.id) === String(expense.predecessorId));
+    const label = pred
+      ? `${fmtDate(pred.date)}  ·  ${getName(persons, pred.personId)}  ·  ${getName(products, pred.productId)}  ·  ${fmtEuro(pred.amount)}${pred.note ? `  ·  ${pred.note}` : ''}`
+      : `ID ${expense.predecessorId} (nicht gefunden)`;
+    return ['Vorgänger-Buchung', label];
+  })();
+
   const details = [
     ['Person',       person],
     ['Datum',        fmtDate(expense.date)],
     ['Kostenstelle', product],
-    ['Betrag',       fmtEuro(expense.amount)],
+    ['Betrag',       fmtAmount(expense.amount, expense.type)],
     ['Typ',          expense.type || 'Ausgabe'],
     ['Zahlungsart',  expense.paymentMethod || '—'],
     ['Notiz',        expense.note || '—'],
+    ...(predecessorRow ? [predecessorRow] : []),
     ['Erfasst am',   expense.createdAt ? new Date(expense.createdAt).toLocaleString('de-DE') : '—'],
     ['Zuletzt geändert', expense.updatedAt ? new Date(expense.updatedAt).toLocaleString('de-DE') : '—'],
     ['Integritäts-Hash', expense.hash ? expense.hash.slice(0, 32) + '…' : '—'],
@@ -177,6 +187,12 @@ export async function exportSingleExpensePdf({ expense, persons, products }) {
         data.cell.styles.textColor = BRAND_COLOR;
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.fontSize  = 11;
+      }
+      // Vorgänger-Buchung hervorheben
+      if (data.cell.raw === 'Vorgänger-Buchung' || (predecessorRow && data.row.index === 7)) {
+        data.cell.styles.fillColor = [255, 243, 224];
+        data.cell.styles.textColor = [180, 90, 0];
+        data.cell.styles.fontStyle = 'bold';
       }
     },
   });
@@ -294,18 +310,33 @@ export async function exportExpensesPdf({
   });
 
   // ── Tabelle ───────────────────────────────────────────────────────────────
-  const rows = expenses.map(e => [
-    fmtDate(e.date),
-    getName(persons, e.personId),
-    getName(products, e.productId),
-    fmtEuro(e.amount),
-    e.type || 'Ausgabe',
-    e.paymentMethod || '—',
-    e.note || '',
-    (e.attachments || []).length > 0
-      ? `${(e.attachments || []).filter(a => a.mimetype?.startsWith('image/')).length} Bild(er) / ${(e.attachments || []).length} gesamt`
-      : '—',
-  ]);
+  const expenseById = new Map(expenses.map(e => [String(e.id), e]));
+  const predecessorSet = new Set(expenses.filter(e => e.predecessorId).map(e => String(e.predecessorId)));
+
+  const rows = expenses.map(e => {
+    const noteParts = [];
+    if (e.predecessorId) {
+      const pred = expenseById.get(String(e.predecessorId));
+      noteParts.push(pred
+        ? `Korrektur von: ${fmtDate(pred.date)} / ${getName(persons, pred.personId)} / ${getName(products, pred.productId)} / ${fmtEuro(pred.amount)}`
+        : `Korrektur (Vorgänger-ID: ${e.predecessorId})`
+      );
+    }
+    if (predecessorSet.has(String(e.id))) noteParts.push('(hat Nachfolge-Korrektur)');
+    if (e.note) noteParts.push(e.note);
+    return [
+      fmtDate(e.date),
+      getName(persons, e.personId),
+      getName(products, e.productId),
+      fmtAmount(e.amount, e.type),
+      e.type || 'Ausgabe',
+      e.paymentMethod || '—',
+      noteParts.join('\n'),
+      (e.attachments || []).length > 0
+        ? `${(e.attachments || []).filter(a => a.mimetype?.startsWith('image/')).length} Bild(er) / ${(e.attachments || []).length} gesamt`
+        : '—',
+    ];
+  });
 
   autoTable(doc, {
     head: [['Datum', 'Person', 'Kostenstelle', 'Betrag', 'Typ', 'Zahlung', 'Notiz', 'Anhänge']],
@@ -346,6 +377,17 @@ export async function exportExpensesPdf({
       5: { cellWidth: 20 },   // Zahlung
       6: { cellWidth: 'auto' }, // Notiz
       7: { cellWidth: 24 },   // Anhänge
+    },
+    didParseCell: (data) => {
+      if (data.section !== 'body') return;
+      const exp = expenses[data.row.index];
+      if (exp?.predecessorId) {
+        data.cell.styles.fillColor = [255, 248, 225];
+        if (data.column.index === 6) {
+          data.cell.styles.textColor = [140, 90, 0];
+          data.cell.styles.fontStyle = 'italic';
+        }
+      }
     },
     didDrawPage: () => {
       // Schmaler Balken oben auf jeder neuen Seite

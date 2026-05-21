@@ -5,6 +5,48 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/).
 
 ---
 
+## [1.4.0] – 2026-05-22
+
+### Neu
+
+- **Vorgänger-Buchung (Korrektur-Verknüpfung)** — Beim Anlegen oder Bearbeiten einer
+  Buchung kann optional eine Vorgänger-Buchung ausgewählt werden (z. B. Materialrückgabe
+  verknüpft mit der ursprünglichen Ausgabe). Die Vorgängerliste ist nach Datum sortiert
+  und zeigt Datum, Person, Kostenstelle und Betrag zur Identifikation.
+
+- **Korrektur-Chips in der Kostentabelle** — Buchungen mit Vorgänger erhalten einen
+  orangefarbenen „Korrektur"-Chip mit Tooltip (Vorgänger-Details). Buchungen, die als
+  Vorgänger referenziert werden, erhalten einen blauen „Korrigiert"-Chip. Beide Chips
+  erscheinen auch im Dashboard (Letzte Buchungen) und in der Analytics-Top-10-Tabelle.
+
+- **Personen-Vergleich in Analytics** — Neue Sektion zum direkten Gegenüberstellen von
+  1 bis n Personen. Personen per Chip-Toggle auswählen; Vergleichstabelle zeigt je Person:
+  Ausgaben (brutto), Korrekturen (Einnahmen mit Vorgänger), Ausgaben (netto), Einnahmen,
+  Saldo, Buchungsanzahl. Umschaltbar zwischen Balken- und Monatsverlaufsdiagramm.
+
+- **`fmtAmount`-Hilfsfunktion** — Neue Formatierungsfunktion in `utils/format.js`, die
+  Ausgaben automatisch als negativen Betrag darstellt (z. B. `−100,00 €`) und Einnahmen
+  als positiven Betrag belässt. Wird in Kostentabelle, Dashboard, Analytics und PDF genutzt.
+
+### Verbessert
+
+- **Typ-Kennzeichnung in Dashboard & Analytics** — Ausgaben werden rot, Einnahmen grün
+  dargestellt (Betrag + Chip). In der Analytics-Top-10-Tabelle wurde eine eigene
+  „Typ"-Spalte ergänzt.
+
+- **Korrekturen im PDF-Export** — Einzelbeleg-PDF zeigt eine hervorgehobene
+  „Vorgänger-Buchung"-Zeile (orange), wenn eine Verknüpfung besteht. Listenexport
+  kennzeichnet Korrektur-Zeilen gelblich und schreibt den Vorgänger-Bezug in die
+  Notiz-Spalte.
+
+- **Berechnungen in Analytics & Dashboard auf Ausgaben beschränkt** — Alle KPIs
+  (Gesamtausgaben, Ø/Monat, Größte Buchung), Charts (Jahresvergleich, Personen-Verlauf,
+  Kostenstellen, Zahlungsarten, Wochentag) und Dashboard-Memos (Gesamtkosten,
+  Monatsverlauf, Personen-Ranking) berücksichtigen jetzt ausschließlich Ausgabe-Einträge.
+  Einnahmen werden nicht mehr in Ausgaben-Summen mitgezählt.
+
+---
+
 ## [1.3.0] – 2026-05-17
 
 ### Behoben

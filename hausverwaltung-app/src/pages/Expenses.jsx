@@ -9,6 +9,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
@@ -21,7 +22,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import DownloadIcon from '@mui/icons-material/Download';
 import { expensesApi, personsApi, productsApi, uploadsApi } from '../api';
-import { fmtEuro, fmtDate } from '../utils/format';
+import { fmtEuro, fmtAmount, fmtDate } from '../utils/format';
 import { exportExpensesPdf, exportSingleExpensePdf } from '../utils/exportPdf';
 
 const paymentMethods = ['Bar', 'Karte', 'Überweisung', 'Lastschrift'];
@@ -30,6 +31,7 @@ const paymentColors = { Bar: 'default', Karte: 'primary', Überweisung: 'success
 const emptyForm = {
   personId: '', productId: '', amount: '', paymentMethod: 'Bar',
   date: new Date().toISOString().split('T')[0], note: '', attachments: [], type: 'Ausgabe',
+  predecessorId: '',
 };
 
 function isImage(mimetype) { return mimetype?.startsWith('image/'); }
@@ -193,7 +195,7 @@ function AttachmentsDialog({ open, attachments, startIndex = 0, onClose }) {
 }
 
 // ── Formular-Modal ────────────────────────────────────────────────────────────
-function ExpenseFormDialog({ open, expense, persons, products, onClose, onSave }) {
+function ExpenseFormDialog({ open, expense, persons, products, expenses, onClose, onSave }) {
   const [formData, setFormData] = useState(emptyForm);
 
   useEffect(() => {
@@ -201,6 +203,7 @@ function ExpenseFormDialog({ open, expense, persons, products, onClose, onSave }
       personId: expense.personId, productId: expense.productId, amount: expense.amount,
       paymentMethod: expense.paymentMethod, date: expense.date, note: expense.note,
       attachments: expense.attachments || [], type: expense.type || 'Ausgabe',
+      predecessorId: expense.predecessorId || '',
     } : emptyForm);
   }, [expense, open]);
 
@@ -273,6 +276,25 @@ function ExpenseFormDialog({ open, expense, persons, products, onClose, onSave }
               fullWidth size="small" placeholder="Optional"
             />
 
+            <FormControl fullWidth size="small">
+              <InputLabel>Vorgänger-Buchung</InputLabel>
+              <Select value={formData.predecessorId || ''} onChange={update('predecessorId')} label="Vorgänger-Buchung">
+                <MenuItem value=""><em>Kein Vorgänger</em></MenuItem>
+                {[...expenses]
+                  .filter(e => !expense || String(e.id) !== String(expense.id))
+                  .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+                  .map(e => {
+                    const pName = persons.find(p => String(p.id) === String(e.personId))?.name ?? '?';
+                    const prName = products.find(p => String(p.id) === String(e.productId))?.name ?? '?';
+                    return (
+                      <MenuItem key={e.id} value={e.id}>
+                        {fmtDate(e.date)} · {pName} · {prName} · {fmtEuro(e.amount)}
+                      </MenuItem>
+                    );
+                  })}
+              </Select>
+            </FormControl>
+
             <FileUploadZone
               attachments={formData.attachments}
               onAdd={addAttachment}
@@ -338,7 +360,7 @@ function Expenses() {
   const handleRowExportPdf = async (expense) => {
     setRowPdfLoading(expense.id);
     try {
-      await exportSingleExpensePdf({ expense, persons, products });
+      await exportSingleExpensePdf({ expense, persons, products, expenses });
     } finally {
       setRowPdfLoading(null);
     }
@@ -451,6 +473,11 @@ function Expenses() {
     setFilterPayment(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterType('');
     setColFilters({ date: '', createdAt: '', updatedAt: '', person: '', product: '', amount: '', type: '', payment: '', note: '' });
   };
+
+  const predecessorSet = useMemo(() =>
+    new Set(expenses.filter(e => e.predecessorId).map(e => String(e.predecessorId))),
+    [expenses]
+  );
 
   const totalEinnahmen = filtered.reduce((sum, e) => (e.type || 'Ausgabe') === 'Einnahme' ? sum + parseFloat(e.amount || 0) : sum, 0);
   const totalAusgaben = filtered.reduce((sum, e) => (e.type || 'Ausgabe') === 'Ausgabe' ? sum + parseFloat(e.amount || 0) : sum, 0);
@@ -676,7 +703,7 @@ function Expenses() {
                       )}
                       <TableCell>{getPersonName(expense.personId)}</TableCell>
                       <TableCell>{getProductName(expense.productId)}</TableCell>
-                      <TableCell sx={{ fontWeight: 'medium' }}>{fmtEuro(expense.amount)}</TableCell>
+                      <TableCell sx={{ fontWeight: 'medium' }}>{fmtAmount(expense.amount, expense.type)}</TableCell>
                       <TableCell>
                         <Chip
                           label={expense.type || 'Ausgabe'}
@@ -687,7 +714,29 @@ function Expenses() {
                       <TableCell>
                         <Chip label={expense.paymentMethod} color={paymentColors[expense.paymentMethod] || 'default'} size="small" />
                       </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>{expense.note}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                        <Box display="flex" flexDirection="column" gap={0.25} alignItems="flex-start">
+                          {expense.predecessorId && (() => {
+                            const pred = expenses.find(e => String(e.id) === String(expense.predecessorId));
+                            const tip = pred
+                              ? `Korrektur von: ${fmtDate(pred.date)} · ${getPersonName(pred.personId)} · ${getProductName(pred.productId)} · ${fmtEuro(pred.amount)}`
+                              : 'Vorgänger nicht gefunden';
+                            return (
+                              <Tooltip title={tip}>
+                                <Chip icon={<AccountTreeIcon />} label="Korrektur" size="small" color="warning" variant="outlined"
+                                  sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-icon': { fontSize: 12 } }} />
+                              </Tooltip>
+                            );
+                          })()}
+                          {predecessorSet.has(String(expense.id)) && (
+                            <Tooltip title="Diese Buchung hat eine Nachfolge-Korrektur">
+                              <Chip icon={<AccountTreeIcon />} label="Korrigiert" size="small" color="info" variant="outlined"
+                                sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-icon': { fontSize: 12 } }} />
+                            </Tooltip>
+                          )}
+                          {expense.note && <span>{expense.note}</span>}
+                        </Box>
+                      </TableCell>
                       <TableCell>
                         {attachments.length > 0 ? (
                           <Stack direction="row" spacing={0.5} alignItems="center">
@@ -791,6 +840,7 @@ function Expenses() {
         expense={editExpense}
         persons={persons}
         products={products}
+        expenses={expenses}
         onClose={closeForm}
         onSave={handleSave}
       />

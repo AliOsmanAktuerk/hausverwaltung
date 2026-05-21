@@ -10,6 +10,17 @@ const euroFormatter = new Intl.NumberFormat('de-DE', {
 export const fmtEuro = (value) => euroFormatter.format(Number(value) || 0);
 
 /**
+ * Wie fmtEuro, aber Ausgaben werden als negativer Betrag dargestellt.
+ * Beispiel: (100, 'Ausgabe') → "−100,00 €"  |  (100, 'Einnahme') → "100,00 €"
+ */
+export const fmtAmount = (value, type) =>
+  euroFormatter.format(
+    (type || 'Ausgabe') === 'Ausgabe'
+      ? -Math.abs(Number(value) || 0)
+      : Number(value) || 0
+  );
+
+/**
  * Formatiert ein ISO-Datum (YYYY-MM-DD) als dd.mm.yyyy.
  * Beispiel: "2026-04-10" → "10.04.2026"
  * Kein Date-Objekt → keine Timezone-Verschiebung.

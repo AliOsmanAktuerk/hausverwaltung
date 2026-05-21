@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Box, Card, CardContent, Typography, Paper, Chip, Avatar, Stack, Tabs, Tab, Alert, Collapse, IconButton, LinearProgress, Tooltip as MuiTooltip, Button, CircularProgress } from '@mui/material';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import BackupIcon from '@mui/icons-material/Backup';
 import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -22,7 +23,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { personsApi, productsApi, expensesApi, systemApi, backupApi } from '../api';
-import { fmtEuro, fmtDate } from '../utils/format';
+import { fmtEuro, fmtAmount, fmtDate } from '../utils/format';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
@@ -190,7 +191,11 @@ function TabKostenstellen({ perKostenstelleData, paymentData }) {
   );
 }
 
-function TabRanking({ topPersons, totalAmount, recentExpenses, persons, products }) {
+function TabRanking({ topPersons, totalAmount, recentExpenses, persons, products, allExpenses }) {
+  const predecessorSet = useMemo(() =>
+    new Set((allExpenses || []).filter(e => e.predecessorId).map(e => String(e.predecessorId))),
+    [allExpenses]
+  );
   return (
     <Box p={3}>
       <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6">
@@ -240,12 +245,37 @@ function TabRanking({ topPersons, totalAmount, recentExpenses, persons, products
                     {person?.name?.[0]?.toUpperCase() || '?'}
                   </Avatar>
                   <Box flex={1} minWidth={0}>
-                    <Typography variant="caption" fontWeight="bold" noWrap display="block">{product?.name || '—'}</Typography>
+                    <Box display="flex" alignItems="center" gap={0.5} flexWrap="wrap">
+                      <Typography variant="caption" fontWeight="bold" noWrap>{product?.name || '—'}</Typography>
+                      {exp.predecessorId && (
+                        <MuiTooltip title="Korrektur-Buchung (hat Vorgänger)">
+                          <Chip icon={<AccountTreeIcon />} label="Korrektur" size="small" color="warning" variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 11 } }} />
+                        </MuiTooltip>
+                      )}
+                      {predecessorSet.has(String(exp.id)) && (
+                        <MuiTooltip title="Diese Buchung hat eine Nachfolge-Korrektur">
+                          <Chip icon={<AccountTreeIcon />} label="Korrigiert" size="small" color="info" variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 11 } }} />
+                        </MuiTooltip>
+                      )}
+                    </Box>
                     <Typography variant="caption" color="text.secondary" noWrap display="block">{person?.name || '—'} · {fmtDate(exp.date)}</Typography>
                   </Box>
-                  <Typography variant="body2" fontWeight="bold" sx={{ color: '#6366f1', whiteSpace: 'nowrap' }}>
-                    {fmtEuro(exp.amount)}
-                  </Typography>
+                  <Box display="flex" flexDirection="column" alignItems="flex-end" gap={0.25}>
+                    <Typography variant="body2" fontWeight="bold" sx={{
+                      color: (exp.type || 'Ausgabe') === 'Einnahme' ? '#10b981' : '#ef4444',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {fmtAmount(exp.amount, exp.type)}
+                    </Typography>
+                    <Chip
+                      label={exp.type || 'Ausgabe'}
+                      color={(exp.type || 'Ausgabe') === 'Einnahme' ? 'success' : 'error'}
+                      size="small"
+                      sx={{ height: 16, fontSize: '0.6rem', '& .MuiChip-label': { px: 0.75 } }}
+                    />
+                  </Box>
                 </Box>
               );
             })}
@@ -449,14 +479,18 @@ function Dashboard() {
   const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
 
-  const totalAmount = useMemo(() => expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0), [expenses]);
+  const isAusg = (e) => (e.type || 'Ausgabe') === 'Ausgabe';
+
+  const totalAmount = useMemo(() =>
+    expenses.filter(isAusg).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    [expenses]);
 
   const thisMonthTotal = useMemo(() =>
-    expenses.filter(e => e.date?.startsWith(thisMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    expenses.filter(e => isAusg(e) && e.date?.startsWith(thisMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
     [expenses, thisMonth]);
 
   const lastMonthTotal = useMemo(() =>
-    expenses.filter(e => e.date?.startsWith(lastMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    expenses.filter(e => isAusg(e) && e.date?.startsWith(lastMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
     [expenses, lastMonth]);
 
   const trend = thisMonthTotal - lastMonthTotal;
@@ -467,7 +501,7 @@ function Dashboard() {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return {
         name: MONTH_NAMES[d.getMonth()],
-        total: parseFloat(expenses.filter(e => e.date?.startsWith(key)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
+        total: parseFloat(expenses.filter(e => isAusg(e) && e.date?.startsWith(key)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
       };
     });
   }, [expenses]);
@@ -475,14 +509,14 @@ function Dashboard() {
   const perPersonData = useMemo(() =>
     persons.map(p => ({
       name: p.name,
-      value: parseFloat(expenses.filter(e => String(e.personId) === String(p.id)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
+      value: parseFloat(expenses.filter(e => isAusg(e) && String(e.personId) === String(p.id)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
       color: p.color || CHART_COLORS[0],
     })).filter(p => p.value > 0),
     [expenses, persons]);
 
   const perKostenstelleData = useMemo(() => {
     const map = {};
-    expenses.forEach(exp => {
+    expenses.filter(isAusg).forEach(exp => {
       const key = products.find(p => String(p.id) === String(exp.productId))?.category || 'Sonstige';
       map[key] = (map[key] || 0) + parseFloat(exp.amount || 0);
     });
@@ -492,7 +526,7 @@ function Dashboard() {
 
   const paymentData = useMemo(() => {
     const map = {};
-    expenses.forEach(e => { map[e.paymentMethod] = (map[e.paymentMethod] || 0) + 1; });
+    expenses.filter(isAusg).forEach(e => { map[e.paymentMethod] = (map[e.paymentMethod] || 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [expenses]);
 
@@ -549,10 +583,10 @@ function Dashboard() {
           gradient="linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)" trend={trend} />
         <KpiCard label="Dieser Monat" value={fmtEuro(thisMonthTotal)} Icon={CalendarMonthIcon}
           gradient="linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)"
-          sub={`${expenses.filter(e => e.date?.startsWith(thisMonth)).length} Buchungen`} />
+          sub={`${expenses.filter(e => isAusg(e) && e.date?.startsWith(thisMonth)).length} Ausgaben`} />
         <KpiCard label="Kostenstellen" value={products.length} Icon={InventoryIcon}
           gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
-          sub={`${expenses.length} Positionen gesamt`} />
+          sub={`${expenses.filter(isAusg).length} Ausgaben gesamt`} />
         <KpiCard label="Personen" value={persons.length} Icon={PeopleIcon}
           gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
           sub={topPersons[0] ? `Top: ${topPersons[0].name}` : 'Keine Daten'} />
@@ -595,7 +629,7 @@ function Dashboard() {
           {tab === 0 && <TabMonatsverlauf monthlyData={monthlyData} />}
           {tab === 1 && <TabPersonen perPersonData={perPersonData} />}
           {tab === 2 && <TabKostenstellen perKostenstelleData={perKostenstelleData} paymentData={paymentData} />}
-          {tab === 3 && <TabRanking topPersons={topPersons} totalAmount={totalAmount} recentExpenses={recentExpenses} persons={persons} products={products} />}
+          {tab === 3 && <TabRanking topPersons={topPersons} totalAmount={totalAmount} recentExpenses={recentExpenses} persons={persons} products={products} allExpenses={expenses} />}
         </Paper>
       )}
     </Box>

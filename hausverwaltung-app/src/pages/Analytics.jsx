@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Box, Card, CardContent, CardHeader, Typography, Stack, Chip, Divider,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Avatar, ToggleButtonGroup, ToggleButton, CircularProgress, Paper,
+  Avatar, ToggleButtonGroup, ToggleButton, CircularProgress, Paper, Tooltip as MuiTooltip,
 } from '@mui/material';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import EuroIcon from '@mui/icons-material/Euro';
@@ -15,7 +16,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, PieChart, Pie,
 } from 'recharts';
 import { personsApi, productsApi, expensesApi } from '../api';
-import { fmtEuro, fmtDate } from '../utils/format';
+import { fmtEuro, fmtAmount, fmtDate } from '../utils/format';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const WEEKDAY_NAMES = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -24,6 +25,7 @@ const COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 const sum = (arr) => arr.reduce((s, v) => s + parseFloat(v || 0), 0);
 const amt = (e) => parseFloat(e.amount || 0);
+const isAusg = (e) => (e.type || 'Ausgabe') === 'Ausgabe';
 
 function toMonthKey(date) {
   return date?.slice(0, 7); // YYYY-MM
@@ -85,8 +87,8 @@ function JahresvergleichChart({ expenses, year }) {
     const prevYear = year - 1;
     return MONTH_NAMES.map((name, i) => {
       const mo = String(i + 1).padStart(2, '0');
-      const curr = sum(expenses.filter(e => e.date?.startsWith(`${year}-${mo}`)).map(amt));
-      const prev = sum(expenses.filter(e => e.date?.startsWith(`${prevYear}-${mo}`)).map(amt));
+      const curr = sum(expenses.filter(e => isAusg(e) && e.date?.startsWith(`${year}-${mo}`)).map(amt));
+      const prev = sum(expenses.filter(e => isAusg(e) && e.date?.startsWith(`${prevYear}-${mo}`)).map(amt));
       return { name, [year]: parseFloat(curr.toFixed(2)), [prevYear]: parseFloat(prev.toFixed(2)) };
     });
   }, [expenses, year]);
@@ -126,7 +128,7 @@ function PersonenMonatsChart({ expenses, persons, year }) {
       const row = { name };
       persons.forEach(p => {
         row[p.name] = parseFloat(
-          sum(expenses.filter(e => e.date?.startsWith(`${year}-${mo}`) && String(e.personId) === String(p.id)).map(amt)).toFixed(2)
+          sum(expenses.filter(e => isAusg(e) && e.date?.startsWith(`${year}-${mo}`) && String(e.personId) === String(p.id)).map(amt)).toFixed(2)
         );
       });
       return row;
@@ -134,7 +136,7 @@ function PersonenMonatsChart({ expenses, persons, year }) {
   }, [expenses, persons, year]);
 
   const active = useMemo(() =>
-    persons.filter(p => expenses.some(e => e.date?.startsWith(String(year)) && String(e.personId) === String(p.id))),
+    persons.filter(p => expenses.some(e => isAusg(e) && e.date?.startsWith(String(year)) && String(e.personId) === String(p.id))),
     [persons, expenses, year]);
 
   return (
@@ -174,7 +176,7 @@ function PersonenMonatsChart({ expenses, persons, year }) {
 function KostenstellenVerlaufChart({ expenses, products, year }) {
   const topCategories = useMemo(() => {
     const map = {};
-    expenses.filter(e => e.date?.startsWith(String(year))).forEach(e => {
+    expenses.filter(e => isAusg(e) && e.date?.startsWith(String(year))).forEach(e => {
       const cat = products.find(p => String(p.id) === String(e.productId))?.name || 'Sonstige';
       map[cat] = (map[cat] || 0) + amt(e);
     });
@@ -189,7 +191,7 @@ function KostenstellenVerlaufChart({ expenses, products, year }) {
         row[cat] = parseFloat(
           sum(expenses.filter(e => {
             const prod = products.find(p => String(p.id) === String(e.productId));
-            return e.date?.startsWith(`${year}-${mo}`) && (prod?.name || 'Sonstige') === cat;
+            return isAusg(e) && e.date?.startsWith(`${year}-${mo}`) && (prod?.name || 'Sonstige') === cat;
           }).map(amt)).toFixed(2)
         );
       });
@@ -238,7 +240,7 @@ function KostenstellenVerlaufChart({ expenses, products, year }) {
 function ZahlungsartChart({ expenses, year }) {
   const data = useMemo(() => {
     const map = {};
-    expenses.filter(e => e.date?.startsWith(String(year))).forEach(e => {
+    expenses.filter(e => isAusg(e) && e.date?.startsWith(String(year))).forEach(e => {
       const m = e.paymentMethod || 'Unbekannt';
       if (!map[m]) map[m] = { betrag: 0, anzahl: 0 };
       map[m].betrag += amt(e);
@@ -299,7 +301,7 @@ function ZahlungsartChart({ expenses, year }) {
 function WochentagChart({ expenses, year }) {
   const data = useMemo(() => {
     const map = Array(7).fill(null).map((_, i) => ({ name: WEEKDAY_NAMES[i], betrag: 0, anzahl: 0 }));
-    expenses.filter(e => e.date?.startsWith(String(year))).forEach(e => {
+    expenses.filter(e => isAusg(e) && e.date?.startsWith(String(year))).forEach(e => {
       if (!e.date) return;
       const [y, m, d] = e.date.split('-').map(Number);
       const dow = new Date(y, m - 1, d).getDay();
@@ -347,6 +349,11 @@ function Top10Table({ expenses, persons, products, year }) {
       .slice(0, 10),
     [expenses, year]);
 
+  const predecessorSet = useMemo(() =>
+    new Set(expenses.filter(e => e.predecessorId).map(e => String(e.predecessorId))),
+    [expenses]
+  );
+
   return (
     <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
       <CardHeader
@@ -364,6 +371,7 @@ function Top10Table({ expenses, persons, products, year }) {
               <TableCell>Datum</TableCell>
               <TableCell>Person</TableCell>
               <TableCell>Kostenstelle</TableCell>
+              <TableCell>Typ</TableCell>
               <TableCell>Zahlungsart</TableCell>
               <TableCell align="right">Betrag</TableCell>
             </TableRow>
@@ -371,7 +379,7 @@ function Top10Table({ expenses, persons, products, year }) {
           <TableBody>
             {top10.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.disabled' }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.disabled' }}>
                   Keine Daten für dieses Jahr
                 </TableCell>
               </TableRow>
@@ -392,13 +400,45 @@ function Top10Table({ expenses, persons, products, year }) {
                       <Typography variant="caption">{person?.name || '—'}</Typography>
                     </Box>
                   </TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>{product?.name || '—'}</TableCell>
+                  <TableCell sx={{ fontSize: 12 }}>
+                    <Box display="flex" alignItems="center" gap={0.5} flexWrap="wrap">
+                      <span>{product?.name || '—'}</span>
+                      {e.predecessorId && (() => {
+                        const pred = expenses.find(x => String(x.id) === String(e.predecessorId));
+                        const tip = pred
+                          ? `Korrektur von: ${fmtDate(pred.date)} · ${persons.find(p => String(p.id) === String(pred.personId))?.name ?? '?'} · ${fmtEuro(pred.amount)}`
+                          : 'Korrektur-Buchung';
+                        return (
+                          <MuiTooltip title={tip}>
+                            <Chip icon={<AccountTreeIcon />} label="Korrektur" size="small" color="warning" variant="outlined"
+                              sx={{ height: 18, fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 11 } }} />
+                          </MuiTooltip>
+                        );
+                      })()}
+                      {predecessorSet.has(String(e.id)) && (
+                        <MuiTooltip title="Hat Nachfolge-Korrektur">
+                          <Chip icon={<AccountTreeIcon />} label="Korrigiert" size="small" color="info" variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 11 } }} />
+                        </MuiTooltip>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={e.type || 'Ausgabe'}
+                      color={(e.type || 'Ausgabe') === 'Einnahme' ? 'success' : 'error'}
+                      size="small"
+                      sx={{ fontSize: 10, height: 20 }}
+                    />
+                  </TableCell>
                   <TableCell>
                     <Chip label={e.paymentMethod || '—'} size="small" variant="outlined" sx={{ fontSize: 10, height: 20 }} />
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" fontWeight={700} sx={{ color: '#6366f1' }}>
-                      {fmtEuro(e.amount)}
+                    <Typography variant="body2" fontWeight={700} sx={{
+                      color: (e.type || 'Ausgabe') === 'Einnahme' ? '#10b981' : '#ef4444',
+                    }}>
+                      {fmtAmount(e.amount, e.type)}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -407,6 +447,215 @@ function Top10Table({ expenses, persons, products, year }) {
           </TableBody>
         </Table>
       </TableContainer>
+    </Card>
+  );
+}
+
+// ── Personen-Vergleich ────────────────────────────────────────────────────────
+function PersonenVergleich({ expenses, persons, year }) {
+  const [selectedIds, setSelectedIds] = useState(() => []);
+  const [chartMode, setChartMode] = useState('bar');
+
+  useEffect(() => {
+    if (persons.length > 0) setSelectedIds(persons.map(p => p.id));
+  }, [persons]);
+
+  const toggle = (id) =>
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const selected = useMemo(() =>
+    persons.filter(p => selectedIds.includes(p.id)),
+    [persons, selectedIds]
+  );
+
+  const yearExp = useMemo(() =>
+    expenses.filter(e => e.date?.startsWith(String(year))),
+    [expenses, year]
+  );
+
+  const stats = useMemo(() => selected.map(person => {
+    const pe = yearExp.filter(e => String(e.personId) === String(person.id));
+    const ausgaben      = pe.filter(e => (e.type || 'Ausgabe') === 'Ausgabe');
+    const einnahmen     = pe.filter(e => e.type === 'Einnahme');
+    const einnahmenKorr = einnahmen.filter(e => e.predecessorId);
+    const bruttoAusgaben   = sum(ausgaben.map(amt));
+    const bruttoEinnahmen  = sum(einnahmen.map(amt));
+    const korrekturBetrag  = sum(einnahmenKorr.map(amt));
+    const nettoAusgaben    = bruttoAusgaben - korrekturBetrag;
+    const saldo            = bruttoEinnahmen - bruttoAusgaben;
+    return {
+      person, bruttoAusgaben, bruttoEinnahmen, korrekturBetrag,
+      korrekturenCount: pe.filter(e => e.predecessorId).length,
+      nettoAusgaben, saldo, count: pe.length,
+    };
+  }), [selected, yearExp]);
+
+  const barData = [
+    { label: 'Ausgaben',   ...Object.fromEntries(stats.map(s => [s.person.name, s.bruttoAusgaben])) },
+    { label: 'Korrekturen',...Object.fromEntries(stats.map(s => [s.person.name, s.korrekturBetrag])) },
+    { label: 'Netto',      ...Object.fromEntries(stats.map(s => [s.person.name, s.nettoAusgaben])) },
+    { label: 'Einnahmen',  ...Object.fromEntries(stats.map(s => [s.person.name, s.bruttoEinnahmen])) },
+  ];
+
+  const lineData = MONTH_NAMES.map((name, i) => {
+    const mo = String(i + 1).padStart(2, '0');
+    const row = { name };
+    selected.forEach(p => {
+      const pe = expenses.filter(e =>
+        String(e.personId) === String(p.id) && e.date?.startsWith(`${year}-${mo}`)
+      );
+      const ausg = sum(pe.filter(e => (e.type || 'Ausgabe') === 'Ausgabe').map(amt));
+      const korr = sum(pe.filter(e => e.type === 'Einnahme' && e.predecessorId).map(amt));
+      row[p.name] = parseFloat((ausg - korr).toFixed(2));
+    });
+    return row;
+  });
+
+  const tableRows = [
+    { key: 'bruttoAusgaben',   label: 'Ausgaben (brutto)',        dot: '#ef4444' },
+    { key: 'korrekturBetrag',  label: 'Korrekturen (Rückgaben)',  dot: '#f59e0b' },
+    { key: 'nettoAusgaben',    label: 'Ausgaben (netto)',         dot: '#6366f1', bold: true },
+    { key: 'bruttoEinnahmen',  label: 'Einnahmen',                dot: '#10b981' },
+    { key: 'saldo',            label: 'Saldo',                    dot: '#06b6d4', bold: true },
+    { key: 'count',            label: 'Buchungen',                dot: '#94a3b8', isCount: true },
+    { key: 'korrekturenCount', label: 'davon Korrekturen',        dot: '#94a3b8', isCount: true },
+  ];
+
+  return (
+    <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+      <CardHeader
+        title="Personen-Vergleich"
+        subheader={`Gegenüberstellung Ausgaben · Einnahmen · Korrekturen – ${year}`}
+        titleTypographyProps={{ fontWeight: 'bold', variant: 'subtitle1' }}
+        subheaderTypographyProps={{ variant: 'caption' }}
+        action={
+          <ToggleButtonGroup value={chartMode} exclusive onChange={(_, v) => v && setChartMode(v)} size="small"
+            sx={{ '& .MuiToggleButton-root': { px: 1.5, py: 0.5, fontSize: 12 } }}>
+            <ToggleButton value="bar">Balken</ToggleButton>
+            <ToggleButton value="line">Verlauf</ToggleButton>
+          </ToggleButtonGroup>
+        }
+      />
+      <Divider />
+      <CardContent>
+        {/* Personen-Auswahl */}
+        <Stack direction="row" spacing={1} flexWrap="wrap" mb={2.5} useFlexGap>
+          {persons.map((p, i) => {
+            const active = selectedIds.includes(p.id);
+            const color  = p.color || COLORS[i % COLORS.length];
+            return (
+              <Chip
+                key={p.id}
+                avatar={
+                  <Avatar sx={{ bgcolor: color, width: 22, height: 22, fontSize: 10 }}>
+                    {p.name[0].toUpperCase()}
+                  </Avatar>
+                }
+                label={p.name}
+                onClick={() => toggle(p.id)}
+                variant={active ? 'filled' : 'outlined'}
+                sx={{
+                  bgcolor: active ? `${color}22` : 'transparent',
+                  borderColor: color,
+                  color: active ? color : 'text.secondary',
+                  fontWeight: active ? 700 : 400,
+                  cursor: 'pointer',
+                }}
+              />
+            );
+          })}
+        </Stack>
+
+        {selected.length === 0 ? (
+          <Box display="flex" justifyContent="center" py={4}>
+            <Typography color="text.disabled">Keine Person ausgewählt</Typography>
+          </Box>
+        ) : (
+          <>
+            {/* Vergleichstabelle */}
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'grey.50', fontSize: 12 } }}>
+                    <TableCell sx={{ minWidth: 180 }}>Kennzahl</TableCell>
+                    {selected.map((p, i) => (
+                      <TableCell key={p.id} align="right">
+                        <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.75}>
+                          <Avatar sx={{ width: 20, height: 20, fontSize: 10, bgcolor: p.color || COLORS[i % COLORS.length] }}>
+                            {p.name[0].toUpperCase()}
+                          </Avatar>
+                          <span>{p.name}</span>
+                        </Box>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tableRows.map(row => (
+                    <TableRow key={row.key} hover sx={row.bold ? { bgcolor: 'grey.50' } : {}}>
+                      <TableCell>
+                        <Box display="flex" alignItems="center" gap={0.75}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: row.dot, flexShrink: 0 }} />
+                          <Typography variant="body2" fontWeight={row.bold ? 700 : 400}>{row.label}</Typography>
+                        </Box>
+                      </TableCell>
+                      {stats.map(s => {
+                        const val = s[row.key];
+                        const color = row.key === 'saldo' ? (s.saldo >= 0 ? '#10b981' : '#ef4444') : 'inherit';
+                        return (
+                          <TableCell key={s.person.id} align="right">
+                            <Typography variant="body2" fontWeight={row.bold ? 700 : 400} sx={{ color }}>
+                              {row.isCount ? val : fmtEuro(val)}
+                            </Typography>
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Diagramm */}
+            {chartMode === 'bar' ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={barData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => `${(v / 1000).toFixed(1)}k`} width={48} />
+                  <Tooltip content={<DarkTooltip />} />
+                  <Legend iconType="circle" iconSize={9} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                  {selected.map((p, i) => (
+                    <Bar key={p.id} dataKey={p.name}
+                      fill={p.color || COLORS[i % COLORS.length]}
+                      radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={lineData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => fmtEuro(v)} width={72} />
+                  <Tooltip content={<DarkTooltip />} />
+                  <Legend iconType="circle" iconSize={9} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                  {selected.map((p, i) => (
+                    <Line key={p.id} dataKey={p.name}
+                      stroke={p.color || COLORS[i % COLORS.length]}
+                      strokeWidth={2.5}
+                      dot={{ r: 3, strokeWidth: 0, fill: p.color || COLORS[i % COLORS.length] }}
+                      activeDot={{ r: 5 }} type="monotone" connectNulls
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -435,19 +684,20 @@ export default function Analytics() {
     return [...years].sort((a, b) => b - a);
   }, [expenses, currentYear]);
 
-  // KPIs für gewähltes Jahr
+  // KPIs für gewähltes Jahr — nur Ausgaben
   const yearExpenses = useMemo(() =>
     expenses.filter(e => e.date?.startsWith(String(year))),
     [expenses, year]);
 
-  const prevYearExpenses = useMemo(() =>
-    expenses.filter(e => e.date?.startsWith(String(year - 1))),
+  const yearAusgaben = useMemo(() => yearExpenses.filter(isAusg), [yearExpenses]);
+  const prevYearAusgaben = useMemo(() =>
+    expenses.filter(e => isAusg(e) && e.date?.startsWith(String(year - 1))),
     [expenses, year]);
 
-  const totalYear = useMemo(() => sum(yearExpenses.map(amt)), [yearExpenses]);
-  const totalPrevYear = useMemo(() => sum(prevYearExpenses.map(amt)), [prevYearExpenses]);
+  const totalYear = useMemo(() => sum(yearAusgaben.map(amt)), [yearAusgaben]);
+  const totalPrevYear = useMemo(() => sum(prevYearAusgaben.map(amt)), [prevYearAusgaben]);
   const avgPerMonth = totalYear / 12;
-  const maxExpense = useMemo(() => yearExpenses.length ? Math.max(...yearExpenses.map(amt)) : 0, [yearExpenses]);
+  const maxExpense = useMemo(() => yearAusgaben.length ? Math.max(...yearAusgaben.map(amt)) : 0, [yearAusgaben]);
   const yearTrend = totalPrevYear > 0 ? ((totalYear - totalPrevYear) / totalPrevYear * 100) : null;
 
   if (loading) {
@@ -500,14 +750,14 @@ export default function Analytics() {
           value={fmtEuro(avgPerMonth)}
           icon={QueryStatsIcon}
           color="#06b6d4"
-          sub={`${yearExpenses.length} Buchungen gesamt`}
+          sub={`${yearAusgaben.length} Ausgaben gesamt`}
         />
         <StatCard
-          label="Anzahl Buchungen"
-          value={yearExpenses.length}
+          label="Anzahl Ausgaben"
+          value={yearAusgaben.length}
           icon={ReceiptLongIcon}
           color="#10b981"
-          sub={yearExpenses.length > 0 ? `Ø ${fmtEuro(totalYear / yearExpenses.length)} pro Buchung` : '—'}
+          sub={yearAusgaben.length > 0 ? `Ø ${fmtEuro(totalYear / yearAusgaben.length)} pro Buchung` : '—'}
         />
         <StatCard
           label="Größte Buchung"
@@ -532,6 +782,11 @@ export default function Analytics() {
       {/* Kostenstellen-Verlauf – volle Breite */}
       <Box mb={3}>
         <KostenstellenVerlaufChart expenses={expenses} products={products} year={year} />
+      </Box>
+
+      {/* Personen-Vergleich – volle Breite */}
+      <Box mb={3}>
+        <PersonenVergleich expenses={expenses} persons={persons} year={year} />
       </Box>
 
       {/* Wochentag + Top 10 */}
