@@ -481,17 +481,25 @@ function Dashboard() {
 
   const isAusg = (e) => (e.type || 'Ausgabe') === 'Ausgabe';
 
+  // Aktive Buchungen: ohne Stornos und ohne stornierte Originale
+  const activeExpenses = useMemo(() => {
+    const stornoIds = new Set(
+      expenses.filter(e => e.storno && e.predecessorId).map(e => String(e.predecessorId))
+    );
+    return expenses.filter(e => !e.storno && !stornoIds.has(String(e.id)));
+  }, [expenses]);
+
   const totalAmount = useMemo(() =>
-    expenses.filter(isAusg).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
-    [expenses]);
+    activeExpenses.filter(isAusg).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    [activeExpenses]);
 
   const thisMonthTotal = useMemo(() =>
-    expenses.filter(e => isAusg(e) && e.date?.startsWith(thisMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
-    [expenses, thisMonth]);
+    activeExpenses.filter(e => isAusg(e) && e.date?.startsWith(thisMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    [activeExpenses, thisMonth]);
 
   const lastMonthTotal = useMemo(() =>
-    expenses.filter(e => isAusg(e) && e.date?.startsWith(lastMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
-    [expenses, lastMonth]);
+    activeExpenses.filter(e => isAusg(e) && e.date?.startsWith(lastMonth)).reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    [activeExpenses, lastMonth]);
 
   const trend = thisMonthTotal - lastMonthTotal;
 
@@ -501,42 +509,42 @@ function Dashboard() {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return {
         name: MONTH_NAMES[d.getMonth()],
-        total: parseFloat(expenses.filter(e => isAusg(e) && e.date?.startsWith(key)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
+        total: parseFloat(activeExpenses.filter(e => isAusg(e) && e.date?.startsWith(key)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
       };
     });
-  }, [expenses]);
+  }, [activeExpenses]);
 
   const perPersonData = useMemo(() =>
     persons.map(p => ({
       name: p.name,
-      value: parseFloat(expenses.filter(e => isAusg(e) && String(e.personId) === String(p.id)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
+      value: parseFloat(activeExpenses.filter(e => isAusg(e) && String(e.personId) === String(p.id)).reduce((s, e) => s + parseFloat(e.amount || 0), 0).toFixed(2)),
       color: p.color || CHART_COLORS[0],
     })).filter(p => p.value > 0),
-    [expenses, persons]);
+    [activeExpenses, persons]);
 
   const perKostenstelleData = useMemo(() => {
     const map = {};
-    expenses.filter(isAusg).forEach(exp => {
+    activeExpenses.filter(isAusg).forEach(exp => {
       const key = products.find(p => String(p.id) === String(exp.productId))?.category || 'Sonstige';
       map[key] = (map[key] || 0) + parseFloat(exp.amount || 0);
     });
     return Object.entries(map).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }))
       .sort((a, b) => b.value - a.value).slice(0, 6);
-  }, [expenses, products]);
+  }, [activeExpenses, products]);
 
   const paymentData = useMemo(() => {
     const map = {};
-    expenses.filter(isAusg).forEach(e => { map[e.paymentMethod] = (map[e.paymentMethod] || 0) + 1; });
+    activeExpenses.filter(isAusg).forEach(e => { map[e.paymentMethod] = (map[e.paymentMethod] || 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [expenses]);
+  }, [activeExpenses]);
 
   const recentExpenses = useMemo(() =>
-    [...expenses].sort((a, b) => b.date?.localeCompare(a.date)).slice(0, 5),
-    [expenses]);
+    [...activeExpenses].sort((a, b) => b.date?.localeCompare(a.date)).slice(0, 5),
+    [activeExpenses]);
 
   const topPersons = useMemo(() => [...perPersonData].sort((a, b) => b.value - a.value), [perPersonData]);
 
-  const isEmpty = expenses.length === 0;
+  const isEmpty = activeExpenses.length === 0;
 
   const TABS = [
     { label: 'Monatsverlauf', icon: <ShowChartIcon sx={{ fontSize: 16 }} /> },
@@ -583,10 +591,10 @@ function Dashboard() {
           gradient="linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)" trend={trend} />
         <KpiCard label="Dieser Monat" value={fmtEuro(thisMonthTotal)} Icon={CalendarMonthIcon}
           gradient="linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)"
-          sub={`${expenses.filter(e => isAusg(e) && e.date?.startsWith(thisMonth)).length} Ausgaben`} />
+          sub={`${activeExpenses.filter(e => isAusg(e) && e.date?.startsWith(thisMonth)).length} Ausgaben`} />
         <KpiCard label="Kostenstellen" value={products.length} Icon={InventoryIcon}
           gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
-          sub={`${expenses.filter(isAusg).length} Ausgaben gesamt`} />
+          sub={`${activeExpenses.filter(isAusg).length} Ausgaben gesamt`} />
         <KpiCard label="Personen" value={persons.length} Icon={PeopleIcon}
           gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
           sub={topPersons[0] ? `Top: ${topPersons[0].name}` : 'Keine Daten'} />

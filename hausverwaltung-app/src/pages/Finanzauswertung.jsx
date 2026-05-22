@@ -411,9 +411,17 @@ export default function Finanzauswertung() {
     return [...years].sort((a, b) => b - a);
   }, [expenses, currentYear]);
 
+  // Aktive Buchungen: ohne Stornos und ohne stornierte Originale
+  const activeExpenses = useMemo(() => {
+    const stornoIds = new Set(
+      expenses.filter(e => e.storno && e.predecessorId).map(e => String(e.predecessorId))
+    );
+    return expenses.filter(e => !e.storno && !stornoIds.has(String(e.id)));
+  }, [expenses]);
+
   const periodExpenses = useMemo(
-    () => filterByPeriod(expenses, year, period),
-    [expenses, year, period],
+    () => filterByPeriod(activeExpenses, year, period),
+    [activeExpenses, year, period],
   );
 
   const totalE   = useMemo(() => sumA(periodExpenses.filter(e => expType(e) === 'Einnahme')), [periodExpenses]);
@@ -497,7 +505,7 @@ export default function Finanzauswertung() {
       </Box>
 
       {/* Monatschart — immer für das ganze Jahr */}
-      <MonatsChart expenses={expenses} year={year} />
+      <MonatsChart expenses={activeExpenses} year={year} />
     </Box>
   );
 }

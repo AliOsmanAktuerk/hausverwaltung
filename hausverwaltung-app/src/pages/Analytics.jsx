@@ -341,7 +341,7 @@ function WochentagChart({ expenses, year }) {
 }
 
 // ── Top-10 Ausgaben ───────────────────────────────────────────────────────────
-function Top10Table({ expenses, persons, products, year }) {
+function Top10Table({ expenses, allExpenses, persons, products, year }) {
   const top10 = useMemo(() =>
     [...expenses]
       .filter(e => e.date?.startsWith(String(year)))
@@ -350,8 +350,8 @@ function Top10Table({ expenses, persons, products, year }) {
     [expenses, year]);
 
   const predecessorSet = useMemo(() =>
-    new Set(expenses.filter(e => e.predecessorId).map(e => String(e.predecessorId))),
-    [expenses]
+    new Set((allExpenses || expenses).filter(e => e.predecessorId).map(e => String(e.predecessorId))),
+    [allExpenses, expenses]
   );
 
   return (
@@ -404,7 +404,7 @@ function Top10Table({ expenses, persons, products, year }) {
                     <Box display="flex" alignItems="center" gap={0.5} flexWrap="wrap">
                       <span>{product?.name || '—'}</span>
                       {e.predecessorId && (() => {
-                        const pred = expenses.find(x => String(x.id) === String(e.predecessorId));
+                        const pred = (allExpenses || expenses).find(x => String(x.id) === String(e.predecessorId));
                         const tip = pred
                           ? `Korrektur von: ${fmtDate(pred.date)} · ${persons.find(p => String(p.id) === String(pred.personId))?.name ?? '?'} · ${fmtEuro(pred.amount)}`
                           : 'Korrektur-Buchung';
@@ -684,15 +684,23 @@ export default function Analytics() {
     return [...years].sort((a, b) => b - a);
   }, [expenses, currentYear]);
 
-  // KPIs für gewähltes Jahr — nur Ausgaben
+  // Aktive Buchungen: ohne Stornos und ohne stornierte Originale
+  const activeExpenses = useMemo(() => {
+    const stornoIds = new Set(
+      expenses.filter(e => e.storno && e.predecessorId).map(e => String(e.predecessorId))
+    );
+    return expenses.filter(e => !e.storno && !stornoIds.has(String(e.id)));
+  }, [expenses]);
+
+  // KPIs für gewähltes Jahr — nur aktive Ausgaben (keine Stornos)
   const yearExpenses = useMemo(() =>
-    expenses.filter(e => e.date?.startsWith(String(year))),
-    [expenses, year]);
+    activeExpenses.filter(e => e.date?.startsWith(String(year))),
+    [activeExpenses, year]);
 
   const yearAusgaben = useMemo(() => yearExpenses.filter(isAusg), [yearExpenses]);
   const prevYearAusgaben = useMemo(() =>
-    expenses.filter(e => isAusg(e) && e.date?.startsWith(String(year - 1))),
-    [expenses, year]);
+    activeExpenses.filter(e => isAusg(e) && e.date?.startsWith(String(year - 1))),
+    [activeExpenses, year]);
 
   const totalYear = useMemo(() => sum(yearAusgaben.map(amt)), [yearAusgaben]);
   const totalPrevYear = useMemo(() => sum(prevYearAusgaben.map(amt)), [prevYearAusgaben]);
@@ -770,29 +778,29 @@ export default function Analytics() {
 
       {/* Jahresvergleich – volle Breite */}
       <Box mb={3}>
-        <JahresvergleichChart expenses={expenses} year={year} />
+        <JahresvergleichChart expenses={activeExpenses} year={year} />
       </Box>
 
       {/* Personen + Zahlungsarten */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 380px' }, gap: 3, mb: 3 }}>
-        <PersonenMonatsChart expenses={expenses} persons={persons} year={year} />
-        <ZahlungsartChart expenses={expenses} year={year} />
+        <PersonenMonatsChart expenses={activeExpenses} persons={persons} year={year} />
+        <ZahlungsartChart expenses={activeExpenses} year={year} />
       </Box>
 
       {/* Kostenstellen-Verlauf – volle Breite */}
       <Box mb={3}>
-        <KostenstellenVerlaufChart expenses={expenses} products={products} year={year} />
+        <KostenstellenVerlaufChart expenses={activeExpenses} products={products} year={year} />
       </Box>
 
       {/* Personen-Vergleich – volle Breite */}
       <Box mb={3}>
-        <PersonenVergleich expenses={expenses} persons={persons} year={year} />
+        <PersonenVergleich expenses={activeExpenses} persons={persons} year={year} />
       </Box>
 
       {/* Wochentag + Top 10 */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '420px 1fr' }, gap: 3 }}>
-        <WochentagChart expenses={expenses} year={year} />
-        <Top10Table expenses={expenses} persons={persons} products={products} year={year} />
+        <WochentagChart expenses={activeExpenses} year={year} />
+        <Top10Table expenses={activeExpenses} allExpenses={expenses} persons={persons} products={products} year={year} />
       </Box>
     </Box>
   );
