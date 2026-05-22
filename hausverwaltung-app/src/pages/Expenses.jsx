@@ -9,6 +9,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import UndoIcon from '@mui/icons-material/Undo';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SearchIcon from '@mui/icons-material/Search';
@@ -46,13 +47,18 @@ function FileIcon({ mimetype, size = 20 }) {
 function FileUploadZone({ attachments, onAdd, onRemove }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const inputRef = useRef(null);
 
   const handleFiles = async (files) => {
     setUploading(true);
+    setUploadError('');
     for (const file of files) {
       try { onAdd(await uploadsApi.upload(file)); }
-      catch (err) { console.error('Upload fehlgeschlagen:', err); }
+      catch (err) {
+        console.error('Upload fehlgeschlagen:', err);
+        setUploadError(`Upload fehlgeschlagen: ${err.message}`);
+      }
     }
     setUploading(false);
     if (inputRef.current) inputRef.current.value = '';
@@ -81,6 +87,9 @@ function FileUploadZone({ attachments, onAdd, onRemove }) {
           {uploading ? 'Wird hochgeladen…' : 'Dateien ablegen oder klicken'}
         </Typography>
       </Box>
+      {uploadError && (
+        <Typography variant="caption" color="error" display="block" mt={0.5}>{uploadError}</Typography>
+      )}
       {attachments.length > 0 && (
         <Stack spacing={0.5} mt={1}>
           {attachments.map((att) => (
@@ -331,6 +340,37 @@ function DeleteDialog({ open, onClose, onConfirm }) {
   );
 }
 
+// ── Storno-Modal ──────────────────────────────────────────────────────────────
+function StornoDialog({ open, expense, persons, products, onClose, onConfirm }) {
+  if (!expense) return null;
+  const personName = persons.find(p => String(p.id) === String(expense.personId))?.name ?? '?';
+  const productName = products.find(p => String(p.id) === String(expense.productId))?.name ?? '?';
+  const oppositeType = (expense.type || 'Ausgabe') === 'Ausgabe' ? 'Einnahme' : 'Ausgabe';
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Buchung stornieren</DialogTitle>
+      <DialogContent>
+        <Typography gutterBottom>
+          Es wird eine Gegenbuchung ({oppositeType}) erstellt, die diese Buchung ausgleicht:
+        </Typography>
+        <Box sx={{ mt: 1, p: 1.5, borderRadius: 1, backgroundColor: 'grey.50', border: '1px solid', borderColor: 'grey.200' }}>
+          <Typography variant="body2"><b>Datum:</b> {fmtDate(expense.date)}</Typography>
+          <Typography variant="body2"><b>Person:</b> {personName}</Typography>
+          <Typography variant="body2"><b>Produkt:</b> {productName}</Typography>
+          <Typography variant="body2"><b>Betrag:</b> {fmtEuro(expense.amount)}</Typography>
+          <Typography variant="body2"><b>Typ:</b> {expense.type || 'Ausgabe'} → <b>{oppositeType}</b></Typography>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Abbrechen</Button>
+        <Button variant="contained" color="warning" startIcon={<UndoIcon />} onClick={onConfirm}>
+          Stornieren
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ── Hauptkomponente ───────────────────────────────────────────────────────────
 function Expenses() {
   const [expenses, setExpenses] = useState([]);
@@ -339,6 +379,7 @@ function Expenses() {
   const [formOpen, setFormOpen] = useState(false);
   const [editExpense, setEditExpense] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [stornoTarget, setStornoTarget] = useState(null);
   const [preview, setPreview] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -475,7 +516,12 @@ function Expenses() {
   };
 
   const predecessorSet = useMemo(() =>
-    new Set(expenses.filter(e => e.predecessorId).map(e => String(e.predecessorId))),
+    new Set(expenses.filter(e => e.predecessorId && !e.storno).map(e => String(e.predecessorId))),
+    [expenses]
+  );
+
+  const stornoSet = useMemo(() =>
+    new Set(expenses.filter(e => e.storno && e.predecessorId).map(e => String(e.predecessorId))),
     [expenses]
   );
 
@@ -503,6 +549,25 @@ function Expenses() {
     await expensesApi.remove(deleteTarget.id);
     setExpenses(prev => prev.filter(e => e.id !== deleteTarget.id));
     setDeleteTarget(null);
+  };
+
+  const handleStorno = async () => {
+    const exp = stornoTarget;
+    const stornoData = {
+      personId: exp.personId,
+      productId: exp.productId,
+      amount: exp.amount,
+      paymentMethod: exp.paymentMethod,
+      date: new Date().toISOString().split('T')[0],
+      note: `Storno${exp.note ? ': ' + exp.note : ''}`,
+      attachments: [],
+      type: (exp.type || 'Ausgabe') === 'Ausgabe' ? 'Einnahme' : 'Ausgabe',
+      predecessorId: exp.id,
+      storno: true,
+    };
+    const created = await expensesApi.create(stornoData);
+    setExpenses(prev => [...prev, created]);
+    setStornoTarget(null);
   };
 
   return (
@@ -716,7 +781,19 @@ function Expenses() {
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
                         <Box display="flex" flexDirection="column" gap={0.25} alignItems="flex-start">
-                          {expense.predecessorId && (() => {
+                          {expense.storno && expense.predecessorId && (() => {
+                            const pred = expenses.find(e => String(e.id) === String(expense.predecessorId));
+                            const tip = pred
+                              ? `Storno von: ${fmtDate(pred.date)} · ${getPersonName(pred.personId)} · ${getProductName(pred.productId)} · ${fmtEuro(pred.amount)}`
+                              : 'Ursprungsbuchung nicht gefunden';
+                            return (
+                              <Tooltip title={tip}>
+                                <Chip icon={<UndoIcon />} label="Storno" size="small" color="error" variant="outlined"
+                                  sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-icon': { fontSize: 12 } }} />
+                              </Tooltip>
+                            );
+                          })()}
+                          {!expense.storno && expense.predecessorId && (() => {
                             const pred = expenses.find(e => String(e.id) === String(expense.predecessorId));
                             const tip = pred
                               ? `Korrektur von: ${fmtDate(pred.date)} · ${getPersonName(pred.personId)} · ${getProductName(pred.productId)} · ${fmtEuro(pred.amount)}`
@@ -728,6 +805,12 @@ function Expenses() {
                               </Tooltip>
                             );
                           })()}
+                          {stornoSet.has(String(expense.id)) && (
+                            <Tooltip title="Diese Buchung wurde storniert">
+                              <Chip icon={<UndoIcon />} label="Storniert" size="small" color="default" variant="outlined"
+                                sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-icon': { fontSize: 12 } }} />
+                            </Tooltip>
+                          )}
                           {predecessorSet.has(String(expense.id)) && (
                             <Tooltip title="Diese Buchung hat eine Nachfolge-Korrektur">
                               <Chip icon={<AccountTreeIcon />} label="Korrigiert" size="small" color="info" variant="outlined"
@@ -776,6 +859,18 @@ function Expenses() {
                                 ? <CircularProgress size={14} color="inherit" />
                                 : <PictureAsPdfIcon fontSize="small" />}
                             </IconButton>
+                          </Tooltip>
+                          <Tooltip title={stornoSet.has(String(expense.id)) ? 'Bereits storniert' : 'Stornieren'}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                onClick={() => setStornoTarget(expense)}
+                                disabled={stornoSet.has(String(expense.id))}
+                                sx={{ color: 'warning.main' }}
+                              >
+                                <UndoIcon fontSize="small" />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                           <IconButton size="small" onClick={() => openEdit(expense)}>
                             <EditIcon fontSize="small" />
@@ -848,6 +943,14 @@ function Expenses() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
+      />
+      <StornoDialog
+        open={!!stornoTarget}
+        expense={stornoTarget}
+        persons={persons}
+        products={products}
+        onClose={() => setStornoTarget(null)}
+        onConfirm={handleStorno}
       />
       <AttachmentsDialog
         open={!!preview}

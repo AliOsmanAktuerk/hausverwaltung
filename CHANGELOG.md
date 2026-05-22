@@ -5,6 +5,31 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/).
 
 ---
 
+## [1.5.0] – 2026-05-22
+
+### Neu
+
+- **Storno-Funktion** — Jede Buchung kann per Klick auf den Storno-Button (↩) storniert
+  werden. Ein Bestätigungsdialog zeigt die Originalbuchung und die entstehende Gegenbuchung
+  (Ausgabe → Einnahme / Einnahme → Ausgabe) mit heutigem Datum. Die Storno-Buchung erhält
+  automatisch einen roten „Storno"-Chip mit Tooltip, die Originalbuchung einen grauen
+  „Storniert"-Chip. Der Storno-Button wird nach erfolgtem Storno deaktiviert, um
+  Doppel-Stornos zu verhindern.
+
+### Verbessert
+
+- **Upload-Fehlermeldung sichtbar** — Schlägt ein Datei-Upload fehl (z. B. Server nicht
+  erreichbar, Datei zu groß), erscheint die Fehlermeldung jetzt direkt unter der Upload-Zone
+  im Formular statt nur in der Browser-Konsole zu verschwinden.
+
+### Behoben
+
+- **Workbox-Regelreihenfolge für Upload-Caching** — Die `CacheFirst`-Regel für
+  `/api/uploads/` wurde von der allgemeinen `NetworkOnly`-Regel für `/api/` überschattet,
+  sodass Bilder nie gecacht wurden. Die spezifischere Regel steht jetzt korrekt davor.
+
+---
+
 ## [1.4.0] – 2026-05-22
 
 ### Neu

@@ -43,18 +43,18 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
-            // API-Aufrufe: immer Netzwerk, kein Cache
-            urlPattern: /^\/api\//,
-            handler: 'NetworkOnly',
-          },
-          {
-            // Uploads: Cache-First mit Netzwerk-Fallback
+            // Uploads: Cache-First — muss VOR der allgemeinen /api/-Regel stehen
             urlPattern: /^\/api\/uploads\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'uploads-cache',
               expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
+          },
+          {
+            // Alle anderen API-Aufrufe: immer Netzwerk, kein Cache
+            urlPattern: /^\/api\//,
+            handler: 'NetworkOnly',
           },
         ],
       },
